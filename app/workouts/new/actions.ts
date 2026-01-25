@@ -1,7 +1,6 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 const SetSchema = z.object({
@@ -16,16 +15,18 @@ const ExerciseSchema = z.object({
 
 const WorkoutSchema = z.object({
   name: z.string().min(1),
-  performedAt: z.string().min(1), // datetime-local
+  performedAt: z.string().min(1),
   exercises: z.array(ExerciseSchema).min(1),
 });
 
-export async function saveWorkout(raw: unknown) {
+async function insertWorkoutTree(raw: unknown) {
   const parsed = WorkoutSchema.parse(raw);
 
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/login");
+  if (!userData.user) {
+    return { ok: false as const, error: "Not authenticated" };
+  }
 
   // 1) Insert workout
   const { data: workout, error: wErr } = await supabase
@@ -38,7 +39,8 @@ export async function saveWorkout(raw: unknown) {
     .select("id")
     .single();
 
-  if (wErr) throw new Error(wErr.message);
+  if (wErr) return { ok: false as const, error: wErr.message };
+  if (!workout) return { ok: false as const, error: "Workout not returned" };
 
   // 2) Insert workout exercises
   const wexToInsert = parsed.exercises.map((e, i) => ({
@@ -52,8 +54,8 @@ export async function saveWorkout(raw: unknown) {
     .insert(wexToInsert)
     .select("id, exercise_order");
 
-  if (weErr) throw new Error(weErr.message);
-  if (!wexRows) throw new Error("No workout_exercises returned.");
+  if (weErr) return { ok: false as const, error: weErr.message };
+  if (!wexRows) return { ok: false as const, error: "No workout_exercises returned" };
 
   const wexSorted = [...wexRows].sort((a, b) => a.exercise_order - b.exercise_order);
 
@@ -69,7 +71,12 @@ export async function saveWorkout(raw: unknown) {
   });
 
   const { error: sErr } = await supabase.from("exercise_sets").insert(setsToInsert);
-  if (sErr) throw new Error(sErr.message);
+  if (sErr) return { ok: false as const, error: sErr.message };
 
-  redirect("/dashboard");
+  return { ok: true as const, workoutId: workout.id };
+}
+
+// ✅ new: client can call this, then clear local draft and navigate
+export async function finishWorkout(raw: unknown) {
+  return insertWorkoutTree(raw);
 }
