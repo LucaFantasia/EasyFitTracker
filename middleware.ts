@@ -16,8 +16,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Supabase will write refreshed cookies onto THIS response
-  let response = NextResponse.next({ request });
+  // Collect cookies Supabase wants to set
+  const cookiesToSet: Array<{
+    name: string;
+    value: string;
+    options: any;
+  }> = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,46 +31,46 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
+        setAll(newCookies) {
+          newCookies.forEach(({ name, value, options }) => {
+            cookiesToSet.push({ name, value, options });
           });
         },
       },
     }
   );
 
-  // refresh session if needed
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
-  const redirect = (to: string, withNext?: boolean) => {
+  // Decide the final response first
+  let response: NextResponse;
+
+  if (pathname === "/") {
     const url = request.nextUrl.clone();
-    url.pathname = to;
-    if (withNext) url.searchParams.set("next", pathname + search);
+    url.pathname = user ? "/dashboard" : "/login";
+    response = NextResponse.redirect(url);
+  } else if (!user && isProtected) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("next", pathname + search);
+    response = NextResponse.redirect(url);
+  } else if (user && isAuthRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    response = NextResponse.redirect(url);
+  } else {
+    response = NextResponse.next({ request });
+  }
 
-    const redirectResponse = NextResponse.redirect(url);
-
-    // Copy cookies set on `response` into redirect response
-    for (const c of response.cookies.getAll()) {
-      // Only pass cookie options, not the whole object
-      const { name, value, ...options } = c as any;
-      redirectResponse.cookies.set(name, value, options);
-    }
-
-    return redirectResponse;
-  };
-
-  // "/" -> dashboard/login
-  if (pathname === "/") return redirect(user ? "/dashboard" : "/login");
-
-  // block protected routes if signed out
-  if (!user && isProtected) return redirect("/login", true);
-
-  // block login/signup if already signed in
-  if (user && isAuthRoute) return redirect("/dashboard");
+  // Apply Supabase cookie updates to whichever response we’re returning
+  cookiesToSet.forEach(({ name, value, options }) => {
+    response.cookies.set(name, value, options);
+  });
 
   return response;
 }
