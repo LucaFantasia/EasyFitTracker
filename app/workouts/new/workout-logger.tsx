@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { EXERCISES } from "./exercises";
 
 type SetEntry = { reps: number | ""; weight: number | "" };
 type ExerciseEntry = {
@@ -26,16 +27,19 @@ export default function WorkoutLogger() {
     )}:${pad(d.getMinutes())}`;
   });
 
-  const [exerciseName, setExerciseName] = useState("");
+  const [selectedExercise, setSelectedExercise] = useState<string>(EXERCISES[0]);
   const [exercises, setExercises] = useState<ExerciseEntry[]>([]);
 
   const canFinishWorkout = useMemo(() => exercises.length > 0, [exercises.length]);
 
   function addExercise() {
-    const name = exerciseName.trim();
-    if (!name) return;
+  const name = selectedExercise.trim();
+  if (!name) return;
 
-    setExercises((prev) => [
+  // Prevent duplicates (optional but nice)
+  setExercises((prev) => {
+    if (prev.some((e) => e.name === name)) return prev;
+    return [
       ...prev,
       {
         id: uid(),
@@ -43,9 +47,9 @@ export default function WorkoutLogger() {
         sets: [{ reps: "", weight: "" }],
         completed: false,
       },
-    ]);
-    setExerciseName("");
-  }
+    ];
+  });
+}
 
   function removeExercise(id: string) {
     setExercises((prev) => prev.filter((e) => e.id !== id));
@@ -139,18 +143,22 @@ export default function WorkoutLogger() {
       <section style={{ display: "grid", gap: 12 }}>
         <h2>Exercises</h2>
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            placeholder="Add exercise (e.g., Bench Press)"
-            value={exerciseName}
-            onChange={(e) => setExerciseName(e.target.value)}
-            style={{ flex: 1 }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") addExercise();
-            }}
-          />
-          <button onClick={addExercise}>Add</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select
+                value={selectedExercise}
+                onChange={(e) => setSelectedExercise(e.target.value)}
+                style={{ flex: 1, padding: 6 }}
+            >
+                {EXERCISES.map((name) => (
+                <option key={name} value={name}>
+                    {name}
+                </option>
+                ))}
+            </select>
+
+            <button onClick={addExercise}>Add</button>
         </div>
+
 
         {exercises.length === 0 ? (
           <p style={{ opacity: 0.7 }}>No exercises yet. Add one above.</p>
