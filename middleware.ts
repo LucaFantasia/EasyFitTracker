@@ -16,7 +16,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // This response is where Supabase will write refreshed cookies
+  // Supabase will write refreshed cookies onto THIS response
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -36,51 +36,37 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh/sync session (may set cookies on `response`)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // refresh session if needed
+  const { data: { user } } = await supabase.auth.getUser();
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
-  // Helper: create a redirect *and copy any cookies Supabase set*
-  const redirectWithCookies = (toPath: string) => {
+  const redirect = (to: string, withNext?: boolean) => {
     const url = request.nextUrl.clone();
-    url.pathname = toPath;
+    url.pathname = to;
+    if (withNext) url.searchParams.set("next", pathname + search);
 
     const redirectResponse = NextResponse.redirect(url);
 
-    // copy cookies from `response` (where Supabase wrote them) into redirect response
-    response.cookies.getAll().forEach((c) => {
-      redirectResponse.cookies.set(c.name, c.value, c);
-    });
+    // Copy cookies set on `response` into redirect response
+    for (const c of response.cookies.getAll()) {
+      // Only pass cookie options, not the whole object
+      const { name, value, ...options } = c as any;
+      redirectResponse.cookies.set(name, value, options);
+    }
 
     return redirectResponse;
   };
 
-  // Root redirect
-  if (pathname === "/") {
-    return redirectWithCookies(user ? "/dashboard" : "/login");
-  }
+  // "/" -> dashboard/login
+  if (pathname === "/") return redirect(user ? "/dashboard" : "/login");
 
-  // Not signed in -> block protected routes
-  if (!user && isProtected) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname + search);
+  // block protected routes if signed out
+  if (!user && isProtected) return redirect("/login", true);
 
-    const redirectResponse = NextResponse.redirect(url);
-    response.cookies.getAll().forEach((c) => {
-      redirectResponse.cookies.set(c.name, c.value, c);
-    });
-    return redirectResponse;
-  }
-
-  // Signed in -> keep them out of login/signup
-  if (user && isAuthRoute) {
-    return redirectWithCookies("/dashboard");
-  }
+  // block login/signup if already signed in
+  if (user && isAuthRoute) return redirect("/dashboard");
 
   return response;
 }
