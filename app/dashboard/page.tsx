@@ -1,9 +1,8 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { logout } from "../(auth)/actions";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
-export default async function Dashboard() {
+export default async function DashboardPage() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
 
@@ -14,7 +13,14 @@ export default async function Dashboard() {
       <h1>Dashboard</h1>
       <p>Signed in as: {data.user.email}</p>
 
-      <Link href="/logout">Log out</Link>
+      <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
+        <Link href="/workouts/new">Start new workout</Link>
+        <Link href="/logout">Log out</Link>
+      </div>
+
+      <hr style={{ margin: "24px 0" }} />
+
+      <p>Recent workouts will go here.</p>
     </main>
   );
 }
