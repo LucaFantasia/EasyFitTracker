@@ -90,7 +90,7 @@ function BigGridButton({
     <button
       onClick={onClick}
       style={{
-        height: 64,
+        height: "clamp(64px, 10vh, 92px)",
         borderRadius: 16,
         border: "1px solid rgba(255,255,255,0.12)",
         background: subtle ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.08)",
@@ -212,20 +212,23 @@ function FullScreenPicker({
 
       {/* Values grid */}
       <div
-        style={{
-          marginTop: 14,
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 12,
-          paddingBottom: 12,
-        }}
-      >
-        {values.map((v) => (
-          <BigGridButton key={v} onClick={() => onPickValue(v)}>
-            {Number.isInteger(v) ? v : v.toFixed(1).replace(/\.0$/, "")}
-          </BigGridButton>
-        ))}
+          style={{
+            marginTop: 14,
+            flex: 1,                     // ✅ take remaining height
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 12,
+            alignContent: values.length <= 6 ? "center" : "start",       // or "center" if you want it vertically centered
+            paddingBottom: 12,
+          }}
+        >
+          {values.map((v) => (
+            <BigGridButton key={v} onClick={() => onPickValue(v)}>
+              {Number.isInteger(v) ? v : v.toFixed(1).replace(/\.0$/, "")}
+            </BigGridButton>
+          ))}
       </div>
+
 
       <div style={{ marginTop: "auto" }}>
         {footer}
