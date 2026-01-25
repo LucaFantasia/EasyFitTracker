@@ -20,6 +20,7 @@ export default async function DashboardPage() {
 
       <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
         <Link href="/workouts/new">Start new workout</Link>
+        <Link href="/workouts">View all workouts</Link>
         <form action={logout}>
           <button type="submit">Log out</button>
         </form>
