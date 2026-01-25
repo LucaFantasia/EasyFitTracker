@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { logout } from "../(auth)/actions";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -15,7 +16,9 @@ export default async function DashboardPage() {
 
       <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
         <Link href="/workouts/new">Start new workout</Link>
-        <Link href="/logout">Log out</Link>
+        <form action={logout}>
+          <button type="submit">Log out</button>
+        </form>
       </div>
 
       <hr style={{ margin: "24px 0" }} />
