@@ -16,6 +16,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // This response is where Supabase will write refreshed cookies
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -35,6 +36,7 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // Refresh/sync session (may set cookies on `response`)
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -42,26 +44,42 @@ export async function middleware(request: NextRequest) {
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
-  // 0) Root redirect
-  if (pathname === "/") {
+  // Helper: create a redirect *and copy any cookies Supabase set*
+  const redirectWithCookies = (toPath: string) => {
     const url = request.nextUrl.clone();
-    url.pathname = user ? "/dashboard" : "/login";
-    return NextResponse.redirect(url);
+    url.pathname = toPath;
+
+    const redirectResponse = NextResponse.redirect(url);
+
+    // copy cookies from `response` (where Supabase wrote them) into redirect response
+    response.cookies.getAll().forEach((c) => {
+      redirectResponse.cookies.set(c.name, c.value, c);
+    });
+
+    return redirectResponse;
+  };
+
+  // Root redirect
+  if (pathname === "/") {
+    return redirectWithCookies(user ? "/dashboard" : "/login");
   }
 
-  // 1) Not signed in -> block protected routes
+  // Not signed in -> block protected routes
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname + search);
-    return NextResponse.redirect(url);
+
+    const redirectResponse = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((c) => {
+      redirectResponse.cookies.set(c.name, c.value, c);
+    });
+    return redirectResponse;
   }
 
-  // 2) Signed in -> keep them out of login/signup
+  // Signed in -> keep them out of login/signup
   if (user && isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return redirectWithCookies("/dashboard");
   }
 
   return response;
