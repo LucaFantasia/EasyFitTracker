@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "../(auth)/actions";
+import Link from "next/link";
 
 export default async function Dashboard() {
   const supabase = await createClient();
@@ -13,9 +14,7 @@ export default async function Dashboard() {
       <h1>Dashboard</h1>
       <p>Signed in as: {data.user.email}</p>
 
-      <form action={logout} style={{ marginTop: 16 }}>
-        <button type="submit">Log out</button>
-      </form>
+      <Link href="/logout">Log out</Link>
     </main>
   );
 }

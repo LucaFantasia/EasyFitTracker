@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { login } from "../actions";
+import {SubmitButton} from "../SubmitButton";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string, next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
 
   return (
     <main style={{ padding: 24, maxWidth: 420 }}>
@@ -17,6 +18,7 @@ export default async function LoginPage({
       ) : null}
 
       <form action={login} style={{ display: "grid", gap: 12, marginTop: 16 }}>
+        <input type="hidden" name="next" value={next ?? ""} />
         <label>
           Email
           <input name="email" type="email" required style={{ width: "100%" }} />
@@ -32,7 +34,7 @@ export default async function LoginPage({
           />
         </label>
 
-        <button type="submit">Log in</button>
+        <SubmitButton pendingText="Logging in...">Log in</SubmitButton>
       </form>
 
       <p style={{ marginTop: 16 }}>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signup } from "../actions";
+import { SubmitButton } from "../SubmitButton";
 
 export default async function SignupPage({
   searchParams,
@@ -32,7 +33,7 @@ export default async function SignupPage({
           />
         </label>
 
-        <button type="submit">Create account</button>
+        <SubmitButton pendingText="Creating account...">Create account</SubmitButton>
       </form>
 
       <p style={{ marginTop: 16 }}>
