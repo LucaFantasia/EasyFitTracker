@@ -15,7 +15,9 @@ export default function WorkoutDetailActions({
 
       <form action={deleteWorkout}>
         <input type="hidden" name="id" value={workoutId} />
-        <Button variant="danger">Delete</Button>
+        <Button variant="danger" type="submit">
+          Delete
+        </Button>
       </form>
     </Row>
   );

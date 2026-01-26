@@ -1,90 +1,170 @@
 "use client";
 
-import * as React from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-type SetDraft = {
-  reps: number;
-  weight: number;
-};
-
-type ExerciseDraft = {
-  name: string;
-  sets: SetDraft[];
-  completed: boolean;
-};
+type DraftSet = { reps: number; weight: number };
+type DraftExercise = { name: string; sets: DraftSet[]; completed?: boolean };
 
 export type WorkoutDraft = {
-  name: string;
-  performedAt: string;
-  exercises: ExerciseDraft[];
+  workoutName?: string;
+  exercises: DraftExercise[];
 };
 
-const STORAGE_KEY = "easy-fit-workout-draft";
-
-const defaultDraft = (): WorkoutDraft => ({
-  name: "Workout",
-  performedAt: new Date().toISOString(),
-  exercises: [],
-});
-
-type DraftContextValue = {
+type WorkoutDraftContextValue = {
   draft: WorkoutDraft;
-  setDraft: React.Dispatch<React.SetStateAction<WorkoutDraft>>;
-  resetDraft: () => void;
 
-  // ✅ add these mutations
+  // Keep this so existing code that does direct mutations still works
+  setDraft: React.Dispatch<React.SetStateAction<WorkoutDraft>>;
+
+  // Helpers (so screens don’t need to hand-roll setDraft updates)
+  setWorkoutName: (name: string) => void;
+
+  addExercise: (name: string) => void;
   removeExercise: (exerciseIndex: number) => void;
+
+  addSet: (exerciseIndex: number) => void;
   removeSet: (exerciseIndex: number, setIndex: number) => void;
+
+  setReps: (exerciseIndex: number, setIndex: number, reps: number) => void;
+  setWeight: (exerciseIndex: number, setIndex: number, weight: number) => void;
+
+  completeExercise: (exerciseIndex: number) => void;
+
+  resetDraft: () => void;
 };
 
-const DraftContext = React.createContext<DraftContextValue | null>(null);
+const STORAGE_KEY = "workout_draft_v1";
+const WorkoutDraftContext = createContext<WorkoutDraftContextValue | null>(null);
+
+function readInitialDraft(): WorkoutDraft {
+  if (typeof window === "undefined") return { workoutName: "", exercises: [] };
+
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { workoutName: "", exercises: [] };
+
+    const parsed = JSON.parse(raw) as Partial<WorkoutDraft>;
+
+    return {
+      workoutName: typeof parsed.workoutName === "string" ? parsed.workoutName : "",
+      exercises: Array.isArray(parsed.exercises)
+        ? (parsed.exercises as DraftExercise[])
+        : [],
+    };
+  } catch {
+    return { workoutName: "", exercises: [] };
+  }
+}
 
 export function WorkoutDraftProvider({ children }: { children: React.ReactNode }) {
-  const [draft, setDraft] = React.useState<WorkoutDraft>(() => {
-    if (typeof window === "undefined") return defaultDraft();
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? (JSON.parse(saved) as WorkoutDraft) : defaultDraft();
-  });
+  const [draft, setDraft] = useState<WorkoutDraft>(() => readInitialDraft());
 
-  React.useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    } catch {}
   }, [draft]);
 
-  const resetDraft = React.useCallback(() => {
-    setDraft(defaultDraft());
-    if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
-  }, []);
+  const value = useMemo<WorkoutDraftContextValue>(() => {
+    const setWorkoutName = (name: string) => {
+      setDraft((d) => ({ ...d, workoutName: name }));
+    };
 
-  const removeExercise = React.useCallback((exerciseIndex: number) => {
-    setDraft((prev) => {
-      const next = structuredClone(prev);
-      next.exercises.splice(exerciseIndex, 1);
-      return next;
-    });
-  }, []);
+    const addExercise = (name: string) => {
+      setDraft((d) => ({
+        ...d,
+        exercises: [...d.exercises, { name, sets: [], completed: false }],
+      }));
+    };
 
-  // ✅ HERE is removeSet
-  const removeSet = React.useCallback((exerciseIndex: number, setIndex: number) => {
-    setDraft((prev) => {
-      const next = structuredClone(prev);
-      const ex = next.exercises?.[exerciseIndex];
-      if (!ex?.sets) return prev;
+    const removeExercise = (exerciseIndex: number) => {
+      setDraft((d) => ({
+        ...d,
+        exercises: d.exercises.filter((_, i) => i !== exerciseIndex),
+      }));
+    };
 
-      ex.sets.splice(setIndex, 1);
-      return next;
-    });
-  }, []);
+    const addSet = (exerciseIndex: number) => {
+      setDraft((d) => ({
+        ...d,
+        exercises: d.exercises.map((ex, i) => {
+          if (i !== exerciseIndex) return ex;
+          return { ...ex, sets: [...ex.sets, { reps: 0, weight: 0 }] };
+        }),
+      }));
+    };
 
-  const value = React.useMemo<DraftContextValue>(
-    () => ({ draft, setDraft, resetDraft, removeExercise, removeSet }),
-    [draft, resetDraft, removeExercise, removeSet]
+    const removeSet = (exerciseIndex: number, setIndex: number) => {
+      setDraft((d) => ({
+        ...d,
+        exercises: d.exercises.map((ex, i) => {
+          if (i !== exerciseIndex) return ex;
+          return { ...ex, sets: ex.sets.filter((_, s) => s !== setIndex) };
+        }),
+      }));
+    };
+
+    const setReps = (exerciseIndex: number, setIndex: number, reps: number) => {
+      setDraft((d) => ({
+        ...d,
+        exercises: d.exercises.map((ex, i) => {
+          if (i !== exerciseIndex) return ex;
+          return {
+            ...ex,
+            sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, reps } : s)),
+          };
+        }),
+      }));
+    };
+
+    const setWeight = (exerciseIndex: number, setIndex: number, weight: number) => {
+      setDraft((d) => ({
+        ...d,
+        exercises: d.exercises.map((ex, i) => {
+          if (i !== exerciseIndex) return ex;
+          return {
+            ...ex,
+            sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, weight } : s)),
+          };
+        }),
+      }));
+    };
+
+    const completeExercise = (exerciseIndex: number) => {
+      setDraft((d) => ({
+        ...d,
+        exercises: d.exercises.map((ex, i) =>
+          i === exerciseIndex ? { ...ex, completed: true } : ex
+        ),
+      }));
+    };
+
+    const resetDraft = () => setDraft({ workoutName: "", exercises: [] });
+
+    return {
+      draft,
+      setDraft,
+      setWorkoutName,
+      addExercise,
+      removeExercise,
+      addSet,
+      removeSet,
+      setReps,
+      setWeight,
+      completeExercise,
+      resetDraft,
+    };
+  }, [draft]);
+
+  return (
+    <WorkoutDraftContext.Provider value={value}>
+      {children}
+    </WorkoutDraftContext.Provider>
   );
-
-  return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
 }
 
 export function useWorkoutDraft() {
-  const ctx = React.useContext(DraftContext);
-  if (!ctx) throw new Error("useWorkoutDraft must be used inside WorkoutDraftProvider");
+  const ctx = useContext(WorkoutDraftContext);
+  if (!ctx) throw new Error("useWorkoutDraft must be used within WorkoutDraftProvider");
   return ctx;
 }

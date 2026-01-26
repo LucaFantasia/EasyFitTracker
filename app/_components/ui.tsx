@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ButtonHTMLAttributes } from "react";
 
 export function Screen({ children }: { children: ReactNode }) {
   return <div style={{ padding: 16, paddingBottom: 96 }}>{children}</div>;
@@ -64,19 +64,20 @@ export function Divider() {
   return <hr style={{ margin: "16px 0" }} />;
 }
 
+type ButtonProps = {
+  children: ReactNode;
+  variant?: "primary" | "danger" | "ghost";
+  full?: boolean;
+  style?: CSSProperties;
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "style">;
+
 export function Button({
   children,
   variant = "primary",
   full,
   style,
-  type = "button",
-}: {
-  children: ReactNode;
-  variant?: "primary" | "danger" | "ghost";
-  full?: boolean;
-  style?: CSSProperties;
-  type?: "button" | "submit";
-}) {
+  ...props
+}: ButtonProps) {
   const colors =
     variant === "danger"
       ? { bg: "var(--danger)", color: "#fff" }
@@ -86,7 +87,7 @@ export function Button({
 
   return (
     <button
-      type={type}
+      {...props}
       style={{
         width: full ? "100%" : "auto",
         padding: "14px 18px",

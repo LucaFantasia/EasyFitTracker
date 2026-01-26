@@ -7,13 +7,17 @@ export default async function WorkoutsPage() {
 
   const { data: workouts } = await supabase
     .from("workouts")
-    .select(
-      "id, name, performed_at, workout_exercises(id, exercise_sets(id))"
-    )
+    .select("id, name, performed_at, workout_exercises(id, exercise_sets(id))")
     .order("performed_at", { ascending: false });
 
   return (
     <Screen>
+      <Row gap={12} style={{ marginBottom: 16 }}>
+        <Link href="/dashboard">← Dashboard</Link>
+        <span style={{ color: "var(--muted)" }}>•</span>
+        <Link href="/workouts/new">Start new workout</Link>
+      </Row>
+
       <h1 style={{ fontSize: 28, marginBottom: 4 }}>Workouts</h1>
       <p style={{ color: "var(--muted)", marginBottom: 24 }}>
         Your training history
@@ -30,9 +34,7 @@ export default async function WorkoutsPage() {
           return (
             <Link key={w.id} href={`/workouts/${w.id}`}>
               <Card>
-                <h3 style={{ marginBottom: 6 }}>
-                  {w.name || "Workout"}
-                </h3>
+                <h3 style={{ marginBottom: 6 }}>{w.name || "Workout"}</h3>
 
                 <Row gap={8}>
                   <Pill>{exerciseCount} exercises</Pill>
@@ -47,7 +49,6 @@ export default async function WorkoutsPage() {
         })}
       </div>
 
-      {/* Sticky CTA */}
       <div
         style={{
           position: "fixed",

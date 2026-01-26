@@ -3,80 +3,111 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
+// ---- Zod schemas ----
+
 const SetSchema = z.object({
-  reps: z.number().int().nullable(),
-  weight: z.number().nullable(),
+  reps: z.number(),
+  weight: z.number(),
 });
 
 const ExerciseSchema = z.object({
-  name: z.string().min(1),
+  name: z.string(),
   sets: z.array(SetSchema).min(1),
+  completed: z.boolean().optional(),
 });
 
 const WorkoutSchema = z.object({
-  name: z.string().min(1),
-  performedAt: z.string().min(1),
+  // Support both names; we'll normalize
+  name: z.string().optional(),
+  workoutName: z.string().optional(),
+
+  // Make optional; we'll fill it in on the server
+  performedAt: z.string().optional(),
+
   exercises: z.array(ExerciseSchema).min(1),
 });
 
-async function insertWorkoutTree(raw: unknown) {
+type FinishResult =
+  | { ok: true; workoutId: string }
+  | { ok: false; error: string };
+
+// ---- Insert tree ----
+
+async function insertWorkoutTree(raw: unknown): Promise<string> {
   const parsed = WorkoutSchema.parse(raw);
 
+  const name = (parsed.name ?? parsed.workoutName ?? "Workout").trim() || "Workout";
+  const performedAt = parsed.performedAt ?? new Date().toISOString();
+
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) {
-    return { ok: false as const, error: "Not authenticated" };
+
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userData?.user) {
+    throw new Error("Not authenticated.");
   }
+  const userId = userData.user.id;
 
   // 1) Insert workout
-  const { data: workout, error: wErr } = await supabase
+  const { data: workoutRow, error: workoutErr } = await supabase
     .from("workouts")
     .insert({
-      user_id: userData.user.id,
-      name: parsed.name,
-      performed_at: new Date(parsed.performedAt).toISOString(),
+      user_id: userId,
+      name,
+      performed_at: performedAt,
     })
     .select("id")
     .single();
 
-  if (wErr) return { ok: false as const, error: wErr.message };
-  if (!workout) return { ok: false as const, error: "Workout not returned" };
+  if (workoutErr || !workoutRow?.id) {
+    throw new Error(workoutErr?.message || "Failed to create workout.");
+  }
 
-  // 2) Insert workout exercises
-  const wexToInsert = parsed.exercises.map((e, i) => ({
-    workout_id: workout.id,
-    exercise_name: e.name,
-    exercise_order: i + 1,
-  }));
+  const workoutId = workoutRow.id as string;
 
-  const { data: wexRows, error: weErr } = await supabase
-    .from("workout_exercises")
-    .insert(wexToInsert)
-    .select("id, exercise_order");
+  // 2) Insert workout_exercises + exercise_sets
+  // We do this sequentially for clarity and to keep set_order correct.
+  for (let exIndex = 0; exIndex < parsed.exercises.length; exIndex++) {
+    const ex = parsed.exercises[exIndex];
 
-  if (weErr) return { ok: false as const, error: weErr.message };
-  if (!wexRows) return { ok: false as const, error: "No workout_exercises returned" };
+    const { data: exRow, error: exErr } = await supabase
+      .from("workout_exercises")
+      .insert({
+        workout_id: workoutId,
+        exercise_name: ex.name,
+        exercise_order: exIndex + 1,
+      })
+      .select("id")
+      .single();
 
-  const wexSorted = [...wexRows].sort((a, b) => a.exercise_order - b.exercise_order);
+    if (exErr || !exRow?.id) {
+      throw new Error(exErr?.message || "Failed to create workout exercise.");
+    }
 
-  // 3) Insert sets
-  const setsToInsert = wexSorted.flatMap((wex, idx) => {
-    const ex = parsed.exercises[idx];
-    return ex.sets.map((s, setIdx) => ({
-      workout_exercise_id: wex.id,
-      set_order: setIdx + 1,
+    const workoutExerciseId = exRow.id as string;
+
+    const setsPayload = ex.sets.map((s, setIndex) => ({
+      workout_exercise_id: workoutExerciseId,
+      set_order: setIndex + 1,
       reps: s.reps,
       weight: s.weight,
     }));
-  });
 
-  const { error: sErr } = await supabase.from("exercise_sets").insert(setsToInsert);
-  if (sErr) return { ok: false as const, error: sErr.message };
+    const { error: setsErr } = await supabase.from("exercise_sets").insert(setsPayload);
+    if (setsErr) {
+      throw new Error(setsErr.message || "Failed to create exercise sets.");
+    }
+  }
 
-  return { ok: true as const, workoutId: workout.id };
+  return workoutId;
 }
 
-// ✅ new: client can call this, then clear local draft and navigate
-export async function finishWorkout(raw: unknown) {
-  return insertWorkoutTree(raw);
+// ---- Public server action ----
+
+export async function finishWorkout(raw: unknown): Promise<FinishResult> {
+  try {
+    const workoutId = await insertWorkoutTree(raw);
+    return { ok: true, workoutId };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Could not save workout." };
+  }
 }

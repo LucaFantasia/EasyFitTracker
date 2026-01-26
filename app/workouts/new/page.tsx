@@ -1,14 +1,25 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { Card, Row, Pill } from "@/app/_components/ui";
 import { useRouter } from "next/navigation";
 import { useWorkoutDraft } from "./WorkoutDraftProvider";
 import { finishWorkout } from "./actions";
 
 function draftIsValid(draft: any) {
-  if (!draft?.name) return false;
+  const name = (draft?.workoutName ?? draft?.name ?? "").trim();
+  if (!name) return false;
   if (!draft?.exercises?.length) return false;
-  return draft.exercises.every((ex: any) => ex?.name && ex?.sets?.length >= 1);
+
+  return draft.exercises.every((ex: any) => {
+    if (!ex?.name) return false;
+    if (!ex?.sets?.length || ex.sets.length < 1) return false;
+
+    // Optional strictness: require reps/weight to be > 0 for each set
+    // (If your app allows 0 as a placeholder, remove this block)
+    return ex.sets.every((s: any) => typeof s?.reps === "number" && typeof s?.weight === "number");
+  });
 }
 
 function Sheet({
@@ -96,7 +107,7 @@ function Sheet({
 
 export default function NewWorkoutPage() {
   const router = useRouter();
-  const { draft, resetDraft, removeExercise } = useWorkoutDraft();
+  const { draft, resetDraft, removeExercise, setWorkoutName, setDraft } = useWorkoutDraft() as any;
 
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
@@ -105,8 +116,11 @@ export default function NewWorkoutPage() {
   const [error, setError] = React.useState<string | null>(null);
 
   const [confirmCancel, setConfirmCancel] = React.useState(false);
-  const [confirmDeleteExerciseIndex, setConfirmDeleteExerciseIndex] = React.useState<number | null>(null);
+  const [confirmDeleteExerciseIndex, setConfirmDeleteExerciseIndex] = React.useState<number | null>(
+    null
+  );
 
+  const workoutName = (draft?.workoutName ?? draft?.name ?? "Workout").trim() || "Workout";
   const canSave = mounted && draftIsValid(draft);
 
   function cancelWorkout() {
@@ -116,13 +130,27 @@ export default function NewWorkoutPage() {
 
   function onFinish() {
     setError(null);
+
+    // Ensure name exists even if older parts of the app still use draft.name
+    if (!workoutName.trim()) {
+      setError("Give your workout a name before saving.");
+      return;
+    }
+
     if (!draftIsValid(draft)) {
       setError("Add at least 1 set to each exercise before saving.");
       return;
     }
 
+    // Make sure the server action receives a name field too (backwards compatible)
+    const payload = {
+      ...draft,
+      workoutName,
+      name: workoutName,
+    };
+
     startSaving(async () => {
-      const res = await finishWorkout(draft);
+      const res = await finishWorkout(payload);
       if (!res || !res.ok) {
         setError(res?.error || "Could not save workout.");
         return;
@@ -142,52 +170,86 @@ export default function NewWorkoutPage() {
 
   return (
     <main style={{ padding: 16, paddingBottom: 160, minHeight: "100dvh" }}>
-      {/* Top bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-        <button
-          onClick={() => router.push("/workouts")}
-          style={{
-            height: 44,
-            padding: "0 14px",
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.9)",
-            fontWeight: 900,
-          }}
-        >
-          ← Workouts
-        </button>
+      {/* Top bar: left group + right group */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "center",
+        }}
+      >
+        {/* Left group */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={() => router.push("/workouts")}
+            style={{
+              height: 44,
+              padding: "0 14px",
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              color: "rgba(255,255,255,0.9)",
+              fontWeight: 900,
+            }}
+          >
+            ← Workouts
+          </button>
 
-        <button
-          onClick={() => setConfirmCancel(true)}
-          style={{
-            height: 44,
-            padding: "0 14px",
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.9)",
-            fontWeight: 900,
-          }}
-        >
-          Cancel
-        </button>
-      </div>
-
-      <header style={{ marginTop: 14 }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>New workout</h1>
-        <div style={{ opacity: 0.7, marginTop: 6, fontWeight: 700 }}>
-          Add exercises, then log sets.
+          {/* Title top-left (not huge / not centered) */}
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 950, lineHeight: 1.1 }}>New workout</div>
+            <div style={{ opacity: 0.7, marginTop: 4, fontWeight: 700, fontSize: 13 }}>
+              Add exercises, then log sets.
+            </div>
+          </div>
         </div>
-      </header>
+
+        {/* Right group */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href="/workouts/new/name" style={{ textDecoration: "none" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                height: 44,
+                padding: "0 12px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                color: "rgba(255,255,255,0.92)",
+                fontWeight: 900,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Pill>Name</Pill>
+              <span style={{ color: "#22c55e" }}>{workoutName}</span>
+              <span style={{ opacity: 0.7, fontWeight: 800 }}>Edit</span>
+            </div>
+          </Link>
+
+          <button
+            onClick={() => setConfirmCancel(true)}
+            style={{
+              height: 44,
+              padding: "0 14px",
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              color: "rgba(255,255,255,0.9)",
+              fontWeight: 900,
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
 
       {/* Exercise list */}
       <section style={{ marginTop: 16 }}>
         {draft.exercises.length === 0 ? (
-          <div style={{ opacity: 0.7, marginTop: 10 }}>
-            No exercises added yet.
-          </div>
+          <div style={{ opacity: 0.7, marginTop: 10 }}>No exercises added yet.</div>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
             {draft.exercises.map((ex: any, idx: number) => {
