@@ -1,2 +1,52 @@
-* { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
+:root {
+  --bg: #0b1020;
+  --surface: #12172a;
+  --surface-2: #171d35;
+  --border: #242b4a;
+  --text: #e8ebff;
+  --muted: #9aa2d1;
+  --accent: #22c55e;
+  --danger: #ef4444;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+}
+
+input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 16px;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+}

@@ -1,40 +1,24 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-
-export async function deleteWorkout(formData: FormData) {
-  const id = String(formData.get("id") ?? "");
-  const supabase = await createClient();
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) redirect("/login");
-
-  const { error } = await supabase.from("workouts").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-
-  redirect("/workouts");
-}
+import { redirect } from "next/navigation";
 
 export async function updateWorkout(formData: FormData) {
-  const id = String(formData.get("id") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-  const performedAt = String(formData.get("performedAt") ?? "");
-  const notes = String(formData.get("notes") ?? "");
-
   const supabase = await createClient();
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) redirect("/login");
 
-  const { error } = await supabase
-    .from("workouts")
-    .update({
-      name,
-      performed_at: new Date(performedAt).toISOString(),
-      notes: notes || null,
-    })
-    .eq("id", id);
+  const id = formData.get("id") as string;
+  const name = formData.get("name") as string;
 
-  if (error) throw new Error(error.message);
+  await supabase.from("workouts").update({ name }).eq("id", id);
 
   redirect(`/workouts/${id}`);
+}
+
+export async function deleteWorkout(formData: FormData) {
+  const supabase = await createClient();
+
+  const id = formData.get("id") as string;
+  await supabase.from("workouts").delete().eq("id", id);
+
+  redirect("/workouts");
 }

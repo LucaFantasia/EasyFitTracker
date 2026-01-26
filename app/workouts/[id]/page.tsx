@@ -1,85 +1,78 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { deleteWorkout } from "./actions";
+import { Screen, Card, Row, Pill, Divider } from "@/app/_components/ui";
+import WorkoutDetailActions from "./WorkoutDetailActions";
 
-export default async function WorkoutDetailPage({
+export default async function WorkoutPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) redirect("/login");
 
-  const { data: workout, error: wErr } = await supabase
+  const supabase = await createClient();
+
+  const { data: workout } = await supabase
     .from("workouts")
-    .select("id, name, performed_at, notes")
+    .select(
+      `
+      id,
+      name,
+      performed_at,
+      workout_exercises(
+        id,
+        exercise_name,
+        exercise_sets(
+          id,
+          reps,
+          weight,
+          set_order
+        )
+      )
+    `
+    )
     .eq("id", id)
     .single();
 
-  if (wErr) throw new Error(wErr.message);
-
-  const { data: exRows, error: exErr } = await supabase
-    .from("workout_exercises")
-    .select("id, exercise_name, exercise_order")
-    .eq("workout_id", id)
-    .order("exercise_order");
-
-  if (exErr) throw new Error(exErr.message);
-
-  const wexIds = (exRows ?? []).map((r) => r.id);
-
-  const { data: setsRows, error: sErr } = await supabase
-    .from("exercise_sets")
-    .select("workout_exercise_id, set_order, reps, weight")
-    .in("workout_exercise_id", wexIds)
-    .order("set_order");
-
-  if (sErr) throw new Error(sErr.message);
-
-  const setsByWex = new Map<string, typeof setsRows>();
-  (setsRows ?? []).forEach((s) => {
-    const arr = setsByWex.get(s.workout_exercise_id) ?? [];
-    arr.push(s);
-    setsByWex.set(s.workout_exercise_id, arr);
-  });
+  if (!workout) notFound();
 
   return (
-    <main style={{ padding: 24, maxWidth: 900 }}>
-      <p>
-        <Link href="/workouts">← Back to workouts</Link>
-      </p>
+    <Screen>
+      <Link href="/workouts">← Back</Link>
 
-      <h1 style={{ marginTop: 8 }}>{workout.name}</h1>
-      <p>{new Date(workout.performed_at).toLocaleString()}</p>
+      <h1 style={{ marginTop: 12 }}>{workout.name || "Workout"}</h1>
 
-      <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-        <Link href={`/workouts/${id}/edit`}>Edit</Link>
+      <Row gap={8} style={{ marginBottom: 12 }}>
+        <Pill>{new Date(workout.performed_at).toLocaleString()}</Pill>
+      </Row>
 
-        <form action={deleteWorkout}>
-          <input type="hidden" name="id" value={id} />
-          <button type="submit">Delete</button>
-        </form>
+      <WorkoutDetailActions workoutId={workout.id} />
+
+      <Divider />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {workout.workout_exercises.map((ex, i) => (
+          <Card key={ex.id}>
+            <h3 style={{ marginBottom: 12 }}>
+              {i + 1}. {ex.exercise_name}
+            </h3>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {ex.exercise_sets
+                .sort((a, b) => a.set_order - b.set_order)
+                .map((set) => (
+                  <Row key={set.id} gap={8}>
+                    <Pill>Set {set.set_order}</Pill>
+                    <span>
+                      {set.reps} reps @ {set.weight} kg
+                    </span>
+                  </Row>
+                ))}
+            </div>
+          </Card>
+        ))}
       </div>
-
-      <hr style={{ margin: "24px 0" }} />
-
-      {(exRows ?? []).map((ex) => (
-        <div key={ex.id} style={{ marginBottom: 18 }}>
-          <h3>
-            {ex.exercise_order}. {ex.exercise_name}
-          </h3>
-          <ul>
-            {(setsByWex.get(ex.id) ?? []).map((s) => (
-              <li key={s.set_order}>
-                Set {s.set_order}: {s.reps ?? "-"} reps @ {s.weight ?? "-"} kg
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </main>
+    </Screen>
   );
 }
