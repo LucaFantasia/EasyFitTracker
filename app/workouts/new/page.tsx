@@ -175,12 +175,14 @@ export default function NewWorkoutPage() {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 12,
+          gap: 10,
           alignItems: "center",
+          flexWrap: "wrap",
+          width: "100%",
         }}
       >
         {/* Left group */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <button
             onClick={() => router.push("/workouts")}
             style={{
@@ -198,7 +200,7 @@ export default function NewWorkoutPage() {
         </div>
 
         {/* Right group */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end",  maxWidth: "100%"}}>
           <Link href="/workouts/new/name" style={{ textDecoration: "none" }}>
             <div
               style={{
@@ -212,11 +214,23 @@ export default function NewWorkoutPage() {
                 background: "rgba(255,255,255,0.06)",
                 color: "rgba(255,255,255,0.92)",
                 fontWeight: 900,
-                whiteSpace: "nowrap",
+                maxWidth: "100%",
+                overflow: "hidden",
               }}
             >
               <Pill>Name</Pill>
-              <span style={{ color: "#22c55e" }}>{workoutName}</span>
+              <span
+                style={{
+                  color: "#22c55e",
+                  maxWidth: 140,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  display: "inline-block",
+                }}
+              >
+                {workoutName}
+              </span>
               <span style={{ opacity: 0.7, fontWeight: 800 }}>Edit</span>
             </div>
           </Link>

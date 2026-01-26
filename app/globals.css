@@ -22,6 +22,12 @@ body {
   color: var(--text);
 }
 
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+
 a {
   color: var(--accent);
   text-decoration: none;
