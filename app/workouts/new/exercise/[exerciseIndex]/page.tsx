@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTransition } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWorkoutDraft } from "../../WorkoutDraftProvider";
 
@@ -100,6 +101,7 @@ export default function ExercisePage() {
 
   const [confirmDeleteSetIndex, setConfirmDeleteSetIndex] = React.useState<number | null>(null);
   const [confirmDeleteExercise, setConfirmDeleteExercise] = React.useState(false);
+  const [isPending, startTransition] = useTransition();
 
   if (!mounted) {
     return (
@@ -140,31 +142,40 @@ export default function ExercisePage() {
   function addSet() {
     const newSetIndex = exercise.sets.length;
 
-    setDraft((prev) => {
-      const next = structuredClone(prev);
-      const ex = next.exercises[exerciseIndex];
-      ex.sets.push({ reps: 8, weight: 80 });
-      // if you add a new set, it's usually not "complete" anymore
-      (ex as any).completed = false;
-      return next;
-    });
-
+    // ✅ navigate immediately
     router.push(`/workouts/new/exercise/${exerciseIndex}/set/${newSetIndex}`);
+
+    // ✅ update draft without blocking navigation
+    startTransition(() => {
+      setDraft((prev) => {
+        const next = structuredClone(prev);
+        const ex = next.exercises[exerciseIndex];
+        ex.sets.push({ reps: 8, weight: 80 });
+        (ex as any).completed = false;
+        return next;
+      });
+    });
   }
+
 
   function completeExercise() {
-    // require at least 1 set
+    // optional: require at least 1 set
     if (!exercise.sets?.length) return;
 
-    setDraft((prev) => {
-      const next = structuredClone(prev);
-      const ex = next.exercises[exerciseIndex];
-      (ex as any).completed = true;
-      return next;
-    });
-
+    // ✅ navigate immediately
     router.push("/workouts/new");
+
+    // ✅ update draft without blocking navigation
+    startTransition(() => {
+      setDraft((prev) => {
+        const next = structuredClone(prev);
+        const ex = next.exercises[exerciseIndex];
+        (ex as any).completed = true;
+        return next;
+      });
+    });
   }
+
 
   function markIncomplete() {
     setDraft((prev) => {
@@ -333,6 +344,7 @@ export default function ExercisePage() {
       >
         <button
           onClick={addSet}
+          disabled={isPending}
           style={{
             height: 56,
             borderRadius: 14,
@@ -348,7 +360,7 @@ export default function ExercisePage() {
 
         <button
           onClick={completeExercise}
-          disabled={!showComplete}
+          disabled={!showComplete || isPending}
           style={{
             height: 56,
             borderRadius: 14,
