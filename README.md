@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Easy Fit Tracker
 
-## Getting Started
+**Easy Fit Tracker** is a mobile-first workout tracking web app designed for fast, frictionless logging — no typing, just taps.
 
-First, run the development server:
+Built for people who want to log workouts quickly at the gym without breaking flow.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🚀 Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Workout Logging
+- Create workouts with a clean, step-by-step flow
+- Add exercises → log sets → save workout
+- No typing for reps or weight (picker-based UI)
+- One task per screen, optimized for phones
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Workout History
+- View all past workouts
+- Workout detail pages with exercises and sets
+- Edit workout name after completion
+- Delete workouts securely
 
-## Learn More
+### Smart UX
+- Shows **previous set info** (“last time”) for context
+- Large tap targets and iOS-style spacing
+- Dark UI with green accent
+- Navigation-first design (no blocking UI)
 
-To learn more about Next.js, take a look at the following resources:
+### Authentication
+- Email/password auth via Supabase
+- Secure logout via server actions
+- Session-safe routing
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🧠 Tech Stack
 
-## Deploy on Vercel
+- **Next.js** (App Router, client-heavy)
+- **TypeScript**
+- **Supabase**
+  - Authentication
+  - PostgreSQL database
+  - Row Level Security (RLS)
+- **Vercel** (deployment)
+- **Zod** (server-side validation)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🏗 Architecture Overview
+
+### Draft Workout Flow
+- Client-side draft state via React Context
+- Persisted in `localStorage`
+- Structure:
+    - Workout
+        - Exercises
+            - Sets
+                - Reps
+                - Weight
+
+
+### Server Actions
+- Saving workouts
+- Editing workout names
+- Deleting workouts
+- Logging out
+
+### Database Model
+- `workouts`
+- `workout_exercises`
+- `exercise_sets`
+
+---
+
+## 📱 Mobile-First Design Principles
+
+- Designed for phone screens first
+- No horizontal scrolling
+- Large buttons (≥44px)
+- No keyboard required during workout logging
+- Smooth navigation with optimistic updates
+
+---
+
+## 🔐 Security
+
+- Supabase Auth
+- RLS enforced on all workout data
+- Server-side validation with Zod
+- No client-side trust for writes
+
+---
+
+## 🧪 Status
+
+**Version:** `v1.0.0`  
+**State:** Feature-complete MVP  
+**Next planned work:**
+- Exercise progress/history
+- Performance analytics
+- Caching optimizations
+- UI polish & animations
+
+---
+
+## 📝 License
+
+Private / personal project (adjust as needed).
