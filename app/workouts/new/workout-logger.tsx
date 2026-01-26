@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { EXERCISES } from "./exercises";
-import { saveWorkout } from "./actions";
+import { finishWorkout } from "./actions";
 
 type SetEntry = { reps: number | ""; weight: number | "" };
 type ExerciseEntry = {
@@ -89,23 +89,6 @@ export default function WorkoutLogger() {
       })
     );
   }
-
-  async function finishWorkout() {
-    const payload = {
-      name: workoutName.trim(),
-      performedAt,
-      exercises: exercises.map((e) => ({
-        name: e.name,
-        sets: e.sets.map((s) => ({
-          reps: s.reps === "" ? null : Number(s.reps),
-          weight: s.weight === "" ? null : Number(s.weight),
-        })),
-      })),
-    };
-
-    await saveWorkout(payload);
-  }
-
 
   return (
     <main style={{ padding: 24, maxWidth: 900 }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import * as React from "react";
 
 type SetDraft = {
   reps: number;
@@ -10,6 +10,7 @@ type SetDraft = {
 type ExerciseDraft = {
   name: string;
   sets: SetDraft[];
+  completed: boolean;
 };
 
 export type WorkoutDraft = {
@@ -18,7 +19,7 @@ export type WorkoutDraft = {
   exercises: ExerciseDraft[];
 };
 
-export const STORAGE_KEY = "easy-fit-workout-draft";
+const STORAGE_KEY = "easy-fit-workout-draft";
 
 const defaultDraft = (): WorkoutDraft => ({
   name: "Workout",
@@ -26,57 +27,64 @@ const defaultDraft = (): WorkoutDraft => ({
   exercises: [],
 });
 
-const DraftContext = createContext<{
+type DraftContextValue = {
   draft: WorkoutDraft;
   setDraft: React.Dispatch<React.SetStateAction<WorkoutDraft>>;
   resetDraft: () => void;
-} | null>(null);
+
+  // ✅ add these mutations
+  removeExercise: (exerciseIndex: number) => void;
+  removeSet: (exerciseIndex: number, setIndex: number) => void;
+};
+
+const DraftContext = React.createContext<DraftContextValue | null>(null);
 
 export function WorkoutDraftProvider({ children }: { children: React.ReactNode }) {
-  const [draft, setDraft] = useState<WorkoutDraft>(() => {
+  const [draft, setDraft] = React.useState<WorkoutDraft>(() => {
     if (typeof window === "undefined") return defaultDraft();
     const saved = localStorage.getItem(STORAGE_KEY);
-    return (saved && JSON.parse(saved)) || defaultDraft();
+    return saved ? (JSON.parse(saved) as WorkoutDraft) : defaultDraft();
   });
 
-  useEffect(() => {
+  React.useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
   }, [draft]);
 
-  const resetDraft = () => {
-    const fresh = defaultDraft();
-    setDraft(fresh);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  };
+  const resetDraft = React.useCallback(() => {
+    setDraft(defaultDraft());
+    if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY);
+  }, []);
 
-  function removeExercise(exerciseIndex: number) {
+  const removeExercise = React.useCallback((exerciseIndex: number) => {
     setDraft((prev) => {
       const next = structuredClone(prev);
       next.exercises.splice(exerciseIndex, 1);
       return next;
     });
-  }
+  }, []);
 
-  function removeSet(exerciseIndex: number, setIndex: number) {
+  // ✅ HERE is removeSet
+  const removeSet = React.useCallback((exerciseIndex: number, setIndex: number) => {
     setDraft((prev) => {
       const next = structuredClone(prev);
-      const sets = next.exercises[exerciseIndex]?.sets;
-      if (!sets) return prev;
-      sets.splice(setIndex, 1);
+      const ex = next.exercises?.[exerciseIndex];
+      if (!ex?.sets) return prev;
+
+      ex.sets.splice(setIndex, 1);
       return next;
     });
-  }
+  }, []);
 
-
-  const value = useMemo(() => ({ draft, setDraft, resetDraft, removeExercise, removeSet }), [draft]);
+  const value = React.useMemo<DraftContextValue>(
+    () => ({ draft, setDraft, resetDraft, removeExercise, removeSet }),
+    [draft, resetDraft, removeExercise, removeSet]
+  );
 
   return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
 }
 
 export function useWorkoutDraft() {
-  const ctx = useContext(DraftContext);
+  const ctx = React.useContext(DraftContext);
   if (!ctx) throw new Error("useWorkoutDraft must be used inside WorkoutDraftProvider");
   return ctx;
 }

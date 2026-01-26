@@ -121,7 +121,7 @@ export default function NewWorkoutPage() {
 
     setDraft((prev) => {
       const next = structuredClone(prev);
-      next.exercises.push({ name, sets: [] });
+      next.exercises.push({ name, sets: [], completed: false });
       return next;
     });
 
