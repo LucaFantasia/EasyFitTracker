@@ -1,3 +1,10 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+
 :root {
   --bg: #0b1020;
   --surface: #12172a;
@@ -33,13 +40,17 @@ button {
 
 input {
   width: 100%;
-  padding: 14px 16px;
+  box-sizing: border-box;
+  padding: 14px 52px 14px 16px;
   border-radius: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
   font-size: 16px;
+  line-height: 1.2;
 }
+
+
 
 input:focus {
   outline: none;

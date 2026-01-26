@@ -1,44 +1,113 @@
 import Link from "next/link";
+import { Card, Button } from "@/app/_components/ui";
 import { signup } from "../actions";
-import { SubmitButton } from "../SubmitButton";
 
-export default async function SignupPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-
+export default function SignupPage() {
   return (
-    <main style={{ padding: 24, maxWidth: 420 }}>
-      <h1>Sign up</h1>
+    <div
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          padding: "32px 16px",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 26, fontWeight: 950 }}>
+            Easy Fit Tracker
+          </div>
+          <div
+            style={{
+              marginTop: 6,
+              color: "var(--muted)",
+              fontWeight: 700,
+              fontSize: 14,
+            }}
+          >
+            Create your account
+          </div>
+        </div>
 
-      {error ? (
-        <p style={{ color: "crimson" }}>{error}</p>
-      ) : null}
+        <h1
+          style={{
+            textAlign: "center",
+            marginBottom: 16,
+          }}
+        >
+          Sign up
+        </h1>
 
-      <form action={signup} style={{ display: "grid", gap: 12, marginTop: 16 }}>
-        <label>
-          Email
-          <input name="email" type="email" required style={{ width: "100%" }} />
-        </label>
+        <Card>
+          <form action={signup} style={{ display: "grid", gap: 14 }}>
+            <div>
+              <label
+                style={{
+                  fontSize: 13,
+                  color: "var(--muted)",
+                  fontWeight: 800,
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              >
+                Email
+              </label>
+              <div style={{ marginTop: 6 }}>
+                <input
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                />
+              </div>
+            </div>
 
-        <label>
-          Password
-          <input
-            name="password"
-            type="password"
-            required
-            style={{ width: "100%" }}
-          />
-        </label>
+            <div>
+              <label
+                style={{
+                  fontSize: 13,
+                  color: "var(--muted)",
+                  fontWeight: 800,
+                  marginBottom: 8,
+                }}
+              >
+                Password
+              </label>
+              <div style={{ marginTop: 6 }}>
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+            </div>
 
-        <SubmitButton pendingText="Creating account...">Create account</SubmitButton>
-      </form>
+            <Button full type="submit">
+              Create account
+            </Button>
+          </form>
+        </Card>
 
-      <p style={{ marginTop: 16 }}>
-        Already have an account? <Link href="/login">Log in</Link>
-      </p>
-    </main>
+        <div
+          style={{
+            marginTop: 18,
+            textAlign: "center",
+            color: "var(--muted)",
+            fontWeight: 700,
+          }}
+        >
+          Already have an account?{" "}
+          <Link href="/login" style={{ fontWeight: 900 }}>
+            Log in
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
