@@ -59,7 +59,7 @@ export default async function DashboardPage() {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 950, lineHeight: 1.1 }}>Wayless</div>
+            <div style={{ fontSize: 20, fontWeight: 950, lineHeight: 1.1 }}>Easy Fit Tracker</div>
             <div style={{ marginTop: 4, color: "var(--muted)", fontWeight: 700, fontSize: 13 }}>
               Quick workout logging
             </div>
