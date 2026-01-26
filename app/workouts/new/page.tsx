@@ -195,14 +195,6 @@ export default function NewWorkoutPage() {
           >
             ← Workouts
           </button>
-
-          {/* Title top-left (not huge / not centered) */}
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 950, lineHeight: 1.1 }}>New workout</div>
-            <div style={{ opacity: 0.7, marginTop: 4, fontWeight: 700, fontSize: 13 }}>
-              Add exercises, then log sets.
-            </div>
-          </div>
         </div>
 
         {/* Right group */}
