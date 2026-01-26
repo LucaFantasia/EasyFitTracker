@@ -5,9 +5,6 @@ import { useRouter } from "next/navigation";
 import { useWorkoutDraft } from "./WorkoutDraftProvider";
 import { finishWorkout } from "./actions";
 
-// ✅ Adjust this import to match your project
-import { EXERCISES } from "./exercises";
-
 function draftIsValid(draft: any) {
   if (!draft?.name) return false;
   if (!draft?.exercises?.length) return false;
@@ -99,9 +96,8 @@ function Sheet({
 
 export default function NewWorkoutPage() {
   const router = useRouter();
-  const { draft, setDraft, resetDraft } = useWorkoutDraft();
+  const { draft, resetDraft, removeExercise } = useWorkoutDraft();
 
-  // ✅ avoid hydration mismatch with localStorage-backed draft
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
@@ -113,37 +109,13 @@ export default function NewWorkoutPage() {
 
   const canSave = mounted && draftIsValid(draft);
 
-  function addExercise(name: string) {
-    setError(null);
-
-    // compute index BEFORE state update
-    const newIndex = draft.exercises.length;
-
-    setDraft((prev) => {
-      const next = structuredClone(prev);
-      next.exercises.push({ name, sets: [], completed: false });
-      return next;
-    });
-
-    router.push(`/workouts/new/exercise/${newIndex}`);
-  }
-
-  function deleteExercise(exerciseIndex: number) {
-    setDraft((prev) => {
-      const next = structuredClone(prev);
-      next.exercises.splice(exerciseIndex, 1);
-      return next;
-    });
-  }
-
   function cancelWorkout() {
     resetDraft();
-    router.push("/dashboard"); // or "/dashboard"
+    router.push("/workouts");
   }
 
   function onFinish() {
     setError(null);
-
     if (!draftIsValid(draft)) {
       setError("Add at least 1 set to each exercise before saving.");
       return;
@@ -160,142 +132,132 @@ export default function NewWorkoutPage() {
     });
   }
 
-  // Optional: a consistent top bar
-  const TopBar = (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-      <button
-        onClick={() => router.push("/workouts")}
-        style={{
-          height: 44,
-          padding: "0 14px",
-          borderRadius: 14,
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(255,255,255,0.06)",
-          color: "rgba(255,255,255,0.9)",
-          fontWeight: 900,
-        }}
-      >
-        ← Workouts
-      </button>
-
-      <button
-        onClick={() => setConfirmCancel(true)}
-        style={{
-          height: 44,
-          padding: "0 14px",
-          borderRadius: 14,
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(255,255,255,0.06)",
-          color: "rgba(255,255,255,0.9)",
-          fontWeight: 900,
-        }}
-      >
-        Cancel
-      </button>
-    </div>
-  );
-
-  // While mounting, render a stable skeleton
   if (!mounted) {
     return (
       <main style={{ padding: 16, height: "100dvh" }}>
-        {TopBar}
-        <div style={{ marginTop: 18, opacity: 0.7 }}>Loading…</div>
+        <div style={{ opacity: 0.7 }}>Loading…</div>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 16, paddingBottom: 96, minHeight: "100dvh" }}>
-      {TopBar}
+    <main style={{ padding: 16, paddingBottom: 160, minHeight: "100dvh" }}>
+      {/* Top bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <button
+          onClick={() => router.push("/workouts")}
+          style={{
+            height: 44,
+            padding: "0 14px",
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)",
+            color: "rgba(255,255,255,0.9)",
+            fontWeight: 900,
+          }}
+        >
+          ← Workouts
+        </button>
 
-      <h1 style={{ marginTop: 14, marginBottom: 6 }}>New workout</h1>
-      <div style={{ opacity: 0.7, marginBottom: 16 }}>
-        Tap an exercise to start logging.
+        <button
+          onClick={() => setConfirmCancel(true)}
+          style={{
+            height: 44,
+            padding: "0 14px",
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)",
+            color: "rgba(255,255,255,0.9)",
+            fontWeight: 900,
+          }}
+        >
+          Cancel
+        </button>
       </div>
 
-      {/* Add exercise list */}
-      <section>
-        <div style={{ display: "grid", gap: 10 }}>
-          {EXERCISES.map((name: string) => (
-            <button
-              key={name}
-              onClick={() => addExercise(name)}
-              style={{
-                textAlign: "left",
-                padding: 14,
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.15)",
-                background: "rgba(255,255,255,0.06)",
-                color: "rgba(255,255,255,0.92)",
-                fontSize: 16,
-                fontWeight: 800,
-              }}
-            >
-              {name}
-            </button>
-          ))}
+      <header style={{ marginTop: 14 }}>
+        <h1 style={{ margin: 0, fontSize: 22 }}>New workout</h1>
+        <div style={{ opacity: 0.7, marginTop: 6, fontWeight: 700 }}>
+          Add exercises, then log sets.
         </div>
-      </section>
+      </header>
 
-      <hr style={{ margin: "22px 0", opacity: 0.18 }} />
-
-      {/* Current workout draft */}
-      <section>
-        <h2 style={{ margin: 0 }}>Your workout</h2>
-
+      {/* Exercise list */}
+      <section style={{ marginTop: 16 }}>
         {draft.exercises.length === 0 ? (
-          <div style={{ opacity: 0.7, marginTop: 10 }}>No exercises added yet.</div>
+          <div style={{ opacity: 0.7, marginTop: 10 }}>
+            No exercises added yet.
+          </div>
         ) : (
-          <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-            {draft.exercises.map((ex: any, idx: number) => (
-              <div
-                key={`${ex.name}-${idx}`}
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "center",
-                  padding: 14,
-                  borderRadius: 14,
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "rgba(255,255,255,0.08)",
-                }}
-              >
-                <button
-                  onClick={() => router.push(`/workouts/new/exercise/${idx}`)}
+          <div style={{ display: "grid", gap: 10 }}>
+            {draft.exercises.map((ex: any, idx: number) => {
+              const completed = Boolean(ex.completed);
+              return (
+                <div
+                  key={`${ex.name}-${idx}`}
                   style={{
-                    flex: 1,
-                    textAlign: "left",
-                    background: "transparent",
-                    border: "none",
-                    color: "rgba(255,255,255,0.92)",
-                    padding: 0,
-                  }}
-                >
-                  <div style={{ fontWeight: 900, fontSize: 16 }}>{ex.name}</div>
-                  <div style={{ opacity: 0.75, marginTop: 4, fontWeight: 700 }}>
-                    {ex.sets?.length ?? 0} sets
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setConfirmDeleteExerciseIndex(idx)}
-                  aria-label="Delete exercise"
-                  style={{
-                    width: 44,
-                    height: 44,
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "center",
+                    padding: 14,
                     borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(239,68,68,0.18)",
-                    color: "rgba(255,255,255,0.92)",
-                    fontSize: 18,
-                    fontWeight: 900,
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "rgba(255,255,255,0.08)",
                   }}
                 >
-                  🗑
-                </button>
-              </div>
-            ))}
+                  <button
+                    onClick={() => router.push(`/workouts/new/exercise/${idx}`)}
+                    style={{
+                      flex: 1,
+                      textAlign: "left",
+                      background: "transparent",
+                      border: "none",
+                      color: "rgba(255,255,255,0.92)",
+                      padding: 0,
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, fontSize: 16 }}>{ex.name}</div>
+                    <div style={{ opacity: 0.75, marginTop: 4, fontWeight: 700 }}>
+                      {ex.sets?.length ?? 0} sets
+                    </div>
+                    {completed ? (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          display: "inline-flex",
+                          padding: "6px 10px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(34,197,94,0.35)",
+                          background: "rgba(34,197,94,0.14)",
+                          color: "rgba(220,252,231,0.95)",
+                          fontWeight: 900,
+                          fontSize: 13,
+                        }}
+                      >
+                        Completed ✓
+                      </div>
+                    ) : null}
+                  </button>
+
+                  <button
+                    onClick={() => setConfirmDeleteExerciseIndex(idx)}
+                    aria-label="Delete exercise"
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(239,68,68,0.18)",
+                      color: "rgba(255,255,255,0.92)",
+                      fontSize: 18,
+                      fontWeight: 900,
+                    }}
+                  >
+                    🗑
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
@@ -306,27 +268,49 @@ export default function NewWorkoutPage() {
         </div>
       ) : null}
 
-      {/* Sticky Finish button */}
-      <button
-        onClick={onFinish}
-        disabled={!canSave || isSaving}
+      {/* Sticky actions */}
+      <div
         style={{
           position: "fixed",
           left: 16,
           right: 16,
           bottom: 16,
-          height: 56,
-          borderRadius: 14,
-          fontSize: 18,
-          fontWeight: 900,
-          background: canSave ? "#22c55e" : "rgba(255,255,255,0.12)",
-          color: canSave ? "#022c22" : "rgba(255,255,255,0.5)",
-          border: "none",
-          opacity: isSaving ? 0.85 : 1,
+          display: "grid",
+          gap: 10,
         }}
       >
-        {isSaving ? "Saving…" : "Finish & Save workout"}
-      </button>
+        <button
+          onClick={() => router.push("/workouts/new/add-exercise")}
+          style={{
+            height: 56,
+            borderRadius: 14,
+            fontSize: 18,
+            fontWeight: 900,
+            background: "rgba(255,255,255,0.08)",
+            color: "rgba(255,255,255,0.92)",
+            border: "1px solid rgba(255,255,255,0.12)",
+          }}
+        >
+          + Add exercise
+        </button>
+
+        <button
+          onClick={onFinish}
+          disabled={!canSave || isSaving}
+          style={{
+            height: 56,
+            borderRadius: 14,
+            fontSize: 18,
+            fontWeight: 900,
+            background: canSave ? "#22c55e" : "rgba(255,255,255,0.12)",
+            color: canSave ? "#022c22" : "rgba(255,255,255,0.5)",
+            border: "none",
+            opacity: isSaving ? 0.85 : 1,
+          }}
+        >
+          {isSaving ? "Saving…" : "Finish & Save workout"}
+        </button>
+      </div>
 
       {/* Confirm: cancel workout */}
       {confirmCancel ? (
@@ -347,7 +331,7 @@ export default function NewWorkoutPage() {
           description="This removes the exercise and all its sets from this workout."
           dangerLabel="Delete exercise"
           onDanger={() => {
-            deleteExercise(confirmDeleteExerciseIndex);
+            removeExercise(confirmDeleteExerciseIndex);
             setConfirmDeleteExerciseIndex(null);
           }}
           onCancel={() => setConfirmDeleteExerciseIndex(null)}
