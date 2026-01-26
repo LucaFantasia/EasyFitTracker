@@ -38,6 +38,13 @@ function buildValuesInRange({
   return out;
 }
 
+function formatShortDate(iso: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+}
+
 function PillButton({
   active,
   children,
@@ -167,7 +174,9 @@ function FullScreenPicker({
           <div style={{ fontSize: 18, fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>
             {title}
           </div>
-          {subtitle ? <div style={{ fontSize: 13, opacity: 0.7, marginTop: 2 }}>{subtitle}</div> : null}
+          {subtitle ? (
+            <div style={{ fontSize: 13, opacity: 0.7, marginTop: 2 }}>{subtitle}</div>
+          ) : null}
         </div>
 
         <div
@@ -184,7 +193,6 @@ function FullScreenPicker({
         </div>
       </header>
 
-      {/* Range pills */}
       <div style={{ marginTop: 16, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         <div style={{ display: "flex", gap: 10, paddingBottom: 6 }}>
           {ranges.map((r, i) => (
@@ -195,7 +203,6 @@ function FullScreenPicker({
         </div>
       </div>
 
-      {/* Values grid (fills remaining height) */}
       <div
         style={{
           marginTop: 14,
@@ -241,17 +248,36 @@ function FullScreenPicker({
 }
 
 export default function SetEntryPage() {
+  // ✅ ALL hooks first, always
   const router = useRouter();
   const params = useParams();
-
-  const exerciseIndex = Number(params.exerciseIndex);
-  const setIndex = Number(params.setIndex);
-
   const { draft, setDraft } = useWorkoutDraft();
-  const exercise = draft.exercises?.[exerciseIndex];
 
-  // Ensure set exists
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
+  const [picker, setPicker] = React.useState<PickerMode>(null);
+
+  const [prevLoading, setPrevLoading] = React.useState(false);
+  const [previous, setPrevious] = React.useState<{
+    reps: number | null;
+    weight: number | null;
+    performedAt: string | null;
+    setOrder: number;
+  } | null>(null);
+
+  // params (safe parsing)
+  const exerciseIndex = Number((params as any).exerciseIndex);
+  const setIndex = Number((params as any).setIndex);
+
+  // derive exercise/set (no early returns yet)
+  const exercise = mounted ? draft.exercises?.[exerciseIndex] : undefined;
+  const currentSet = exercise?.sets?.[setIndex];
+
+  // ensure set exists
   React.useEffect(() => {
+    if (!mounted) return;
+
     setDraft((prev) => {
       const next = structuredClone(prev);
       const ex = next.exercises?.[exerciseIndex];
@@ -261,40 +287,49 @@ export default function SetEntryPage() {
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exerciseIndex, setIndex]);
+  }, [mounted, exerciseIndex, setIndex]);
 
-  if (!exercise) {
-    return (
-      <main style={{ height: "100dvh", padding: 16 }}>
-        <p>Missing exercise.</p>
-      </main>
-    );
-  }
+  // load previous set info
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (!exercise?.name) return;
 
-  const currentSet = exercise.sets?.[setIndex] ?? { reps: 8, weight: 80 };
+    let cancelled = false;
+    let exerciseName = exercise ? exercise.name : "";
 
-  function updateSet(next: { reps?: number; weight?: number }) {
-    setDraft((prev) => {
-      const copy = structuredClone(prev);
-      const ex = copy.exercises[exerciseIndex];
-      ex.sets[setIndex] = {
-        reps: next.reps ?? ex.sets[setIndex]?.reps ?? 8,
-        weight: next.weight ?? ex.sets[setIndex]?.weight ?? 80,
-      };
-      // editing a set should mark exercise incomplete
-      (ex as any).completed = false;
-      return copy;
-    });
-  }
+    async function loadPrevious() {
+      setPrevLoading(true);
+      try {
+        const setOrder = setIndex + 1;
+        const res = await fetch(
+          `/api/previous-set?exerciseName=${encodeURIComponent(exerciseName)}&setOrder=${setOrder}`,
+          { cache: "no-store" }
+        );
+        const json = await res.json();
+        if (cancelled) return;
+        setPrevious(json?.ok ? json.previous : null);
+      } catch {
+        if (!cancelled) setPrevious(null);
+      } finally {
+        if (!cancelled) setPrevLoading(false);
+      }
+    }
 
-  const [picker, setPicker] = React.useState<PickerMode>(null);
+    loadPrevious();
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, exercise?.name, setIndex]);
 
-  // Reps picker
+  // pickers setup (safe defaults if currentSet undefined)
+  const safeReps = Number(currentSet?.reps ?? 8);
+  const safeWeight = Number(currentSet?.weight ?? 80);
+
   const repsRanges = React.useMemo(() => buildRanges({ min: 1, max: 30, size: 5 }), []);
   const initialRepsRange = React.useMemo(() => {
-    const reps = clamp(Number(currentSet.reps ?? 8), 1, 30);
+    const reps = clamp(safeReps, 1, 30);
     return Math.floor((reps - 1) / 5);
-  }, [currentSet.reps]);
+  }, [safeReps]);
 
   const [repsRangeIndex, setRepsRangeIndex] = React.useState(initialRepsRange);
   React.useEffect(() => setRepsRangeIndex(initialRepsRange), [initialRepsRange]);
@@ -304,7 +339,6 @@ export default function SetEntryPage() {
     return buildValuesInRange({ start: r.start, end: r.end, step: 1 });
   }, [repsRanges, repsRangeIndex]);
 
-  // Weight picker
   const weightMin = 0;
   const weightMax = 200;
   const bandSize = 10;
@@ -320,9 +354,9 @@ export default function SetEntryPage() {
   );
 
   const initialWeightRange = React.useMemo(() => {
-    const w = clamp(Number(currentSet.weight ?? 80), weightMin, weightMax);
+    const w = clamp(safeWeight, weightMin, weightMax);
     return clamp(Math.floor(w / bandSize), 0, weightRanges.length - 1);
-  }, [currentSet.weight, weightRanges.length]);
+  }, [safeWeight, weightRanges.length]);
 
   const [weightRangeIndex, setWeightRangeIndex] = React.useState(initialWeightRange);
   React.useEffect(() => setWeightRangeIndex(initialWeightRange), [initialWeightRange]);
@@ -332,22 +366,118 @@ export default function SetEntryPage() {
     return buildValuesInRange({ start: r.start, end: r.end, step: weightStep });
   }, [weightRanges, weightRangeIndex]);
 
+  function updateSet(next: { reps?: number; weight?: number }) {
+    setDraft((prev) => {
+      const copy = structuredClone(prev);
+      const ex = copy.exercises[exerciseIndex];
+      if (!ex) return prev;
+
+      while (ex.sets.length <= setIndex) ex.sets.push({ reps: 8, weight: 80 });
+
+      ex.sets[setIndex] = {
+        reps: next.reps ?? ex.sets[setIndex]?.reps ?? 8,
+        weight: next.weight ?? ex.sets[setIndex]?.weight ?? 80,
+      };
+
+      (ex as any).completed = false;
+      return copy;
+    });
+  }
+
+  // ✅ Now it’s safe to early-return (all hooks already ran)
+  if (!mounted) {
+    return (
+      <main style={{ height: "100dvh", padding: 16 }}>
+        <div style={{ opacity: 0.7 }}>Loading…</div>
+      </main>
+    );
+  }
+
+  if (!exercise) {
+    return (
+      <main style={{ height: "100dvh", padding: 16 }}>
+        <p>Missing exercise.</p>
+      </main>
+    );
+  }
+
+  const prevDate = previous?.performedAt ? formatShortDate(previous.performedAt) : null;
+
   return (
-    <main
-      style={{
-        height: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-        padding: 16,
-      }}
-    >
-      <header style={{ marginBottom: 16 }}>
+    <main style={{ height: "100dvh", display: "flex", flexDirection: "column", padding: 16 }}>
+      <header style={{ marginBottom: 14 }}>
         <h2 style={{ margin: 0 }}>{exercise.name}</h2>
         <p style={{ opacity: 0.7, marginTop: 6, marginBottom: 0 }}>
           Set {setIndex + 1}
         </p>
+
+        {/* Last time card (display-only) */}
+        <div
+          style={{
+            marginTop: 12,
+            padding: 14,
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, opacity: 0.75 }}>
+              Last time {prevLoading ? "(loading…)" : ""}
+              {previous?.performedAt ? ` · ${formatShortDate(previous.performedAt)}` : ""}
+            </div>
+
+            {previous?.setOrder ? (
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 900,
+                  opacity: 0.75,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.06)",
+                }}
+              >
+                Set {previous.setOrder}
+              </div>
+            ) : null}
+          </div>
+
+          {previous && previous.reps != null && previous.weight != null ? (
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 26, fontWeight: 950, color: "rgba(255,255,255,0.96)" }}>
+                {previous.reps}
+                <span style={{ fontSize: 16, fontWeight: 900, opacity: 0.7, marginLeft: 6 }}>reps</span>
+              </div>
+
+              <div style={{ fontSize: 26, fontWeight: 950, color: "rgba(255,255,255,0.96)" }}>
+                {Number.isInteger(previous.weight) ? previous.weight : String(previous.weight).replace(/\.0$/, "")}
+                <span style={{ fontSize: 16, fontWeight: 900, opacity: 0.7, marginLeft: 6 }}>kg</span>
+              </div>
+            </div>
+          ) : previous ? (
+            <div style={{ marginTop: 10, opacity: 0.75, fontWeight: 800 }}>
+              No data for this set last time.
+            </div>
+          ) : (
+            <div style={{ marginTop: 10, opacity: 0.75, fontWeight: 800 }}>
+              No previous data for this exercise yet.
+            </div>
+          )}
+        </div>
+
       </header>
 
+      {/* Current values */}
       <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
         <button
           onClick={() => setPicker("reps")}
@@ -365,7 +495,7 @@ export default function SetEntryPage() {
         >
           <div style={{ textAlign: "left" }}>
             <div style={{ fontSize: 14, opacity: 0.75, fontWeight: 800 }}>Reps</div>
-            <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4 }}>{currentSet.reps}</div>
+            <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4 }}>{safeReps}</div>
           </div>
           <div style={{ fontSize: 18, fontWeight: 900, opacity: 0.7 }}>Change →</div>
         </button>
@@ -387,7 +517,9 @@ export default function SetEntryPage() {
           <div style={{ textAlign: "left" }}>
             <div style={{ fontSize: 14, opacity: 0.75, fontWeight: 800 }}>Weight</div>
             <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4 }}>
-              {Number.isInteger(currentSet.weight) ? `${currentSet.weight} kg` : `${String(currentSet.weight).replace(/\.0$/, "")} kg`}
+              {Number.isInteger(safeWeight)
+                ? `${safeWeight} kg`
+                : `${String(safeWeight).replace(/\.0$/, "")} kg`}
             </div>
           </div>
           <div style={{ fontSize: 18, fontWeight: 900, opacity: 0.7 }}>Change →</div>
@@ -417,12 +549,12 @@ export default function SetEntryPage() {
         <FullScreenPicker
           title="Pick Reps"
           subtitle="Tap a range, then tap the exact reps"
-          valueDisplay={`${currentSet.reps}`}
+          valueDisplay={`${safeReps}`}
           ranges={repsRanges}
           rangeIndex={repsRangeIndex}
           setRangeIndex={setRepsRangeIndex}
           values={repsValues}
-          selectedValue={Number(currentSet.reps)}
+          selectedValue={safeReps}
           onPickValue={(v) => updateSet({ reps: v })}
           onClose={() => setPicker(null)}
         />
@@ -432,54 +564,26 @@ export default function SetEntryPage() {
         <FullScreenPicker
           title="Pick Weight"
           subtitle="10kg bands, 2.5kg steps"
-          valueDisplay={`${currentSet.weight}kg`}
+          valueDisplay={`${safeWeight}kg`}
           ranges={weightRanges}
           rangeIndex={weightRangeIndex}
           setRangeIndex={setWeightRangeIndex}
           values={weightValues}
-          selectedValue={Number(currentSet.weight)}
+          selectedValue={safeWeight}
           onPickValue={(v) => updateSet({ weight: v })}
           onClose={() => setPicker(null)}
           footer={
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-              <GridButton
-                selected={false}
-                onClick={() =>
-                  updateSet({
-                    weight: clamp(roundToStep(Number(currentSet.weight) - 2.5, 2.5), 0, 200),
-                  })
-                }
-              >
+              <GridButton selected={false} onClick={() => updateSet({ weight: clamp(roundToStep(safeWeight - 2.5, 2.5), 0, 200) })}>
                 −2.5
               </GridButton>
-              <GridButton
-                selected={false}
-                onClick={() =>
-                  updateSet({
-                    weight: clamp(roundToStep(Number(currentSet.weight) - 5, 2.5), 0, 200),
-                  })
-                }
-              >
+              <GridButton selected={false} onClick={() => updateSet({ weight: clamp(roundToStep(safeWeight - 5, 2.5), 0, 200) })}>
                 −5
               </GridButton>
-              <GridButton
-                selected={false}
-                onClick={() =>
-                  updateSet({
-                    weight: clamp(roundToStep(Number(currentSet.weight) + 5, 2.5), 0, 200),
-                  })
-                }
-              >
+              <GridButton selected={false} onClick={() => updateSet({ weight: clamp(roundToStep(safeWeight + 5, 2.5), 0, 200) })}>
                 +5
               </GridButton>
-              <GridButton
-                selected={false}
-                onClick={() =>
-                  updateSet({
-                    weight: clamp(roundToStep(Number(currentSet.weight) + 2.5, 2.5), 0, 200),
-                  })
-                }
-              >
+              <GridButton selected={false} onClick={() => updateSet({ weight: clamp(roundToStep(safeWeight + 2.5, 2.5), 0, 200) })}>
                 +2.5
               </GridButton>
             </div>
