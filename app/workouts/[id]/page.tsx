@@ -53,11 +53,6 @@ export default async function WorkoutPage({
 
   const durationLabel = formatDuration(workout.duration_seconds);
 
-  async function onDelete() {
-    "use server";
-    await deleteWorkout(id);
-  }
-
   return (
     <div style={{ minHeight: "100vh" }}>
       {/* Sticky header */}
@@ -113,7 +108,8 @@ export default async function WorkoutPage({
               Edit
             </Link>
 
-            <form action={onDelete}>
+            <form action={deleteWorkout}>
+              <input type="hidden" name="id" value={id} />
               <button
                 type="submit"
                 style={{

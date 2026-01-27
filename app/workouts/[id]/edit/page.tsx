@@ -20,12 +20,6 @@ export default async function EditWorkoutPage({
 
   if (error || !workout) notFound();
 
-  async function onSave(formData: FormData) {
-    "use server";
-    const name = String(formData.get("name") ?? "");
-    await updateWorkoutName(id, name);
-  }
-
   return (
     <div style={{ minHeight: "100vh" }}>
       <div style={{ padding: 16 }}>
@@ -38,7 +32,9 @@ export default async function EditWorkoutPage({
         <h1 style={{ marginTop: 8 }}>Edit workout name</h1>
 
         <Card>
-          <form action={onSave} style={{ display: "grid", gap: 12 }}>
+          <form action={updateWorkoutName} style={{ display: "grid", gap: 12 }}>
+            <input type="hidden" name="id" value={id} />
+
             <div>
               <label
                 style={{
