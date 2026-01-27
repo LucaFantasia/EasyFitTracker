@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Screen, Card, Button } from "@/app/_components/ui";
 import { login } from "../actions";
+import OAuthButtons from "./OAuthButtons";
 
 export default function LoginPage() {
   return (
@@ -46,6 +47,23 @@ export default function LoginPage() {
         </h1>
 
         <Card>
+          <OAuthButtons />
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              margin: "6px 0",
+              opacity: 0.75,
+              fontWeight: 800,
+            }}
+          >
+            <div style={{ height: 1, background: "rgba(255,255,255,0.12)", flex: 1 }} />
+            <div style={{ fontSize: 12 }}>OR</div>
+            <div style={{ height: 1, background: "rgba(255,255,255,0.12)", flex: 1 }} />
+          </div>
+
           <form action={login} style={{ display: "grid", gap: 18 }}>
             <div>
               <label
