@@ -3,8 +3,6 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
-// ---- Zod schemas ----
-
 const SetSchema = z.object({
   reps: z.number(),
   weight: z.number(),
@@ -17,12 +15,13 @@ const ExerciseSchema = z.object({
 });
 
 const WorkoutSchema = z.object({
-  // Support both names; we'll normalize
   name: z.string().optional(),
   workoutName: z.string().optional(),
 
-  // Make optional; we'll fill it in on the server
   performedAt: z.string().optional(),
+
+  // ✅ new
+  startedAt: z.string().optional(),
 
   exercises: z.array(ExerciseSchema).min(1),
 });
@@ -31,29 +30,35 @@ type FinishResult =
   | { ok: true; workoutId: string }
   | { ok: false; error: string };
 
-// ---- Insert tree ----
+function computeDurationSeconds(startedAt?: string) {
+  if (!startedAt) return null;
+  const start = Date.parse(startedAt);
+  if (Number.isNaN(start)) return null;
+  const now = Date.now();
+  const seconds = Math.floor((now - start) / 1000);
+  return seconds >= 0 ? seconds : null;
+}
 
 async function insertWorkoutTree(raw: unknown): Promise<string> {
   const parsed = WorkoutSchema.parse(raw);
 
   const name = (parsed.name ?? parsed.workoutName ?? "Workout").trim() || "Workout";
   const performedAt = parsed.performedAt ?? new Date().toISOString();
+  const durationSeconds = computeDurationSeconds(parsed.startedAt);
 
   const supabase = await createClient();
 
   const { data: userData, error: userErr } = await supabase.auth.getUser();
-  if (userErr || !userData?.user) {
-    throw new Error("Not authenticated.");
-  }
+  if (userErr || !userData?.user) throw new Error("Not authenticated.");
   const userId = userData.user.id;
 
-  // 1) Insert workout
   const { data: workoutRow, error: workoutErr } = await supabase
     .from("workouts")
     .insert({
       user_id: userId,
       name,
       performed_at: performedAt,
+      duration_seconds: durationSeconds, // ✅ new
     })
     .select("id")
     .single();
@@ -64,8 +69,6 @@ async function insertWorkoutTree(raw: unknown): Promise<string> {
 
   const workoutId = workoutRow.id as string;
 
-  // 2) Insert workout_exercises + exercise_sets
-  // We do this sequentially for clarity and to keep set_order correct.
   for (let exIndex = 0; exIndex < parsed.exercises.length; exIndex++) {
     const ex = parsed.exercises[exIndex];
 
@@ -93,15 +96,11 @@ async function insertWorkoutTree(raw: unknown): Promise<string> {
     }));
 
     const { error: setsErr } = await supabase.from("exercise_sets").insert(setsPayload);
-    if (setsErr) {
-      throw new Error(setsErr.message || "Failed to create exercise sets.");
-    }
+    if (setsErr) throw new Error(setsErr.message || "Failed to create exercise sets.");
   }
 
   return workoutId;
 }
-
-// ---- Public server action ----
 
 export async function finishWorkout(raw: unknown): Promise<FinishResult> {
   try {

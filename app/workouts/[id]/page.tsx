@@ -1,8 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Screen, Card, Row, Pill, Divider } from "@/app/_components/ui";
-import WorkoutDetailActions from "./WorkoutDetailActions";
+import { Screen, Card, Row, Pill } from "@/app/_components/ui";
+import { deleteWorkout } from "./actions";
+
+function formatDuration(seconds: number | null | undefined) {
+  if (!seconds || seconds <= 0) return null;
+
+  const totalMinutes = Math.round(seconds / 60);
+  if (totalMinutes < 1) return "<1 min";
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+}
 
 export default async function WorkoutPage({
   params,
@@ -13,21 +25,23 @@ export default async function WorkoutPage({
 
   const supabase = await createClient();
 
-  const { data: workout } = await supabase
+  const { data: workout, error } = await supabase
     .from("workouts")
     .select(
       `
       id,
       name,
       performed_at,
-      workout_exercises(
+      duration_seconds,
+      workout_exercises (
         id,
         exercise_name,
-        exercise_sets(
+        exercise_order,
+        exercise_sets (
           id,
+          set_order,
           reps,
-          weight,
-          set_order
+          weight
         )
       )
     `
@@ -35,44 +49,148 @@ export default async function WorkoutPage({
     .eq("id", id)
     .single();
 
-  if (!workout) notFound();
+  if (error || !workout) notFound();
+
+  const durationLabel = formatDuration(workout.duration_seconds);
+
+  async function onDelete() {
+    "use server";
+    await deleteWorkout(id);
+  }
 
   return (
-    <Screen>
-      <Link href="/workouts">← Back</Link>
+    <div style={{ minHeight: "100vh" }}>
+      {/* Sticky header */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 20,
+          background: "var(--bg)",
+          borderBottom: "1px solid var(--border)",
+          padding: 16,
+        }}
+      >
+        <Row gap={10} style={{ justifyContent: "space-between" as any, alignItems: "center" as any }}>
+          <Link
+            href="/workouts"
+            style={{
+              height: 44,
+              padding: "0 14px",
+              borderRadius: 999,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 900,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              color: "rgba(255,255,255,0.92)",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            ← History
+          </Link>
 
-      <h1 style={{ marginTop: 12 }}>{workout.name || "Workout"}</h1>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Link
+              href={`/workouts/${id}/edit`}
+              style={{
+                height: 44,
+                padding: "0 14px",
+                borderRadius: 999,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 900,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                color: "rgba(255,255,255,0.92)",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Edit
+            </Link>
 
-      <Row gap={8} style={{ marginBottom: 12 }}>
-        <Pill>{new Date(workout.performed_at).toLocaleString()}</Pill>
-      </Row>
-
-      <WorkoutDetailActions workoutId={workout.id} />
-
-      <Divider />
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {workout.workout_exercises.map((ex, i) => (
-          <Card key={ex.id}>
-            <h3 style={{ marginBottom: 12 }}>
-              {i + 1}. {ex.exercise_name}
-            </h3>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {ex.exercise_sets
-                .sort((a, b) => a.set_order - b.set_order)
-                .map((set) => (
-                  <Row key={set.id} gap={8}>
-                    <Pill>Set {set.set_order}</Pill>
-                    <span>
-                      {set.reps} reps @ {set.weight} kg
-                    </span>
-                  </Row>
-                ))}
-            </div>
-          </Card>
-        ))}
+            <form action={onDelete}>
+              <button
+                type="submit"
+                style={{
+                  height: 44,
+                  padding: "0 14px",
+                  borderRadius: 999,
+                  fontWeight: 900,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(239,68,68,0.18)",
+                  color: "rgba(255,255,255,0.92)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Delete
+              </button>
+            </form>
+          </div>
+        </Row>
       </div>
-    </Screen>
+
+      <Screen>
+        <h1 style={{ fontSize: 26, marginBottom: 8 }}>
+          {workout.name || "Workout"}
+        </h1>
+
+        <Row gap={8} style={{ flexWrap: "wrap" as any, marginBottom: 18 }}>
+          {workout.performed_at ? (
+            <Pill>{new Date(workout.performed_at).toLocaleString()}</Pill>
+          ) : null}
+          {durationLabel ? <Pill>{durationLabel}</Pill> : null}
+        </Row>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          {workout.workout_exercises
+            ?.sort((a: any, b: any) => (a.exercise_order ?? 0) - (b.exercise_order ?? 0))
+            .map((ex: any) => (
+              <Card key={ex.id}>
+                <div
+                  style={{
+                    fontWeight: 900,
+                    color: "var(--accent)",
+                    marginBottom: 8,
+                  }}
+                >
+                  {ex.exercise_name}
+                </div>
+
+                <div style={{ display: "grid", gap: 8 }}>
+                  {ex.exercise_sets
+                    ?.sort((a: any, b: any) => (a.set_order ?? 0) - (b.set_order ?? 0))
+                    .map((s: any) => (
+                      <div
+                        key={s.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          background: "rgba(255,255,255,0.04)",
+                          fontWeight: 800,
+                        }}
+                      >
+                        <div style={{ opacity: 0.8 }}>Set {s.set_order}</div>
+                        <div style={{ display: "flex", gap: 10 }}>
+                          <span>{s.reps} reps</span>
+                          <span style={{ opacity: 0.7 }}>•</span>
+                          <span>{s.weight} kg</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </Card>
+            ))}
+        </div>
+      </Screen>
+    </div>
   );
 }

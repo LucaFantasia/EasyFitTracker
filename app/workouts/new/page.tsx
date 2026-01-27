@@ -8,18 +8,9 @@ import { useWorkoutDraft } from "./WorkoutDraftProvider";
 import { finishWorkout } from "./actions";
 
 function draftIsValid(draft: any) {
-  const name = (draft?.workoutName ?? draft?.name ?? "").trim();
-  if (!name) return false;
+  // ✅ name no longer required
   if (!draft?.exercises?.length) return false;
-
-  return draft.exercises.every((ex: any) => {
-    if (!ex?.name) return false;
-    if (!ex?.sets?.length || ex.sets.length < 1) return false;
-
-    // Optional strictness: require reps/weight to be > 0 for each set
-    // (If your app allows 0 as a placeholder, remove this block)
-    return ex.sets.every((s: any) => typeof s?.reps === "number" && typeof s?.weight === "number");
-  });
+  return draft.exercises.every((ex: any) => ex?.name && ex?.sets?.length >= 1);
 }
 
 function Sheet({
@@ -107,7 +98,7 @@ function Sheet({
 
 export default function NewWorkoutPage() {
   const router = useRouter();
-  const { draft, resetDraft, removeExercise, setWorkoutName, setDraft } = useWorkoutDraft() as any;
+  const { draft, resetDraft, removeExercise } = useWorkoutDraft();
 
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
@@ -120,7 +111,10 @@ export default function NewWorkoutPage() {
     null
   );
 
-  const workoutName = (draft?.workoutName ?? draft?.name ?? "Workout").trim() || "Workout";
+  // ✅ Default name if user didn't set one
+  const workoutName =
+    (draft.workoutName?.trim() || draft.workoutName?.trim() || "Workout").trim() || "Workout";
+
   const canSave = mounted && draftIsValid(draft);
 
   function cancelWorkout() {
@@ -131,22 +125,15 @@ export default function NewWorkoutPage() {
   function onFinish() {
     setError(null);
 
-    // Ensure name exists even if older parts of the app still use draft.name
-    if (!workoutName.trim()) {
-      setError("Give your workout a name before saving.");
-      return;
-    }
-
     if (!draftIsValid(draft)) {
       setError("Add at least 1 set to each exercise before saving.");
       return;
     }
 
-    // Make sure the server action receives a name field too (backwards compatible)
     const payload = {
       ...draft,
       workoutName,
-      name: workoutName,
+      name: workoutName, // keep compatibility with server schema
     };
 
     startSaving(async () => {
@@ -170,37 +157,41 @@ export default function NewWorkoutPage() {
 
   return (
     <main style={{ padding: 16, paddingBottom: 160, minHeight: "100dvh" }}>
-      {/* Top bar: left group + right group */}
+      {/* Top bar */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 10,
+          gap: 12,
           alignItems: "center",
           flexWrap: "wrap",
           width: "100%",
         }}
       >
-        {/* Left group */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <button
-            onClick={() => router.push("/workouts")}
-            style={{
-              height: 44,
-              padding: "0 14px",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.06)",
-              color: "rgba(255,255,255,0.9)",
-              fontWeight: 900,
-            }}
-          >
-            ← Workouts
-          </button>
+        <button
+          onClick={() => router.push("/workouts")}
+          style={{
+            height: 44,
+            padding: "0 14px",
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)",
+            color: "rgba(255,255,255,0.9)",
+            fontWeight: 900,
+          }}
+        >
+          ← Workouts
+        </button>
+
+        {/* Title top-left (small) */}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 950, lineHeight: 1.1 }}>New workout</div>
+          <div style={{ opacity: 0.7, marginTop: 4, fontWeight: 700, fontSize: 13 }}>
+            Add exercises, then log sets.
+          </div>
         </div>
 
-        {/* Right group */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end",  maxWidth: "100%"}}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <Link href="/workouts/new/name" style={{ textDecoration: "none" }}>
             <div
               style={{
@@ -215,7 +206,6 @@ export default function NewWorkoutPage() {
                 color: "rgba(255,255,255,0.92)",
                 fontWeight: 900,
                 maxWidth: "100%",
-                overflow: "hidden",
               }}
             >
               <Pill>Name</Pill>

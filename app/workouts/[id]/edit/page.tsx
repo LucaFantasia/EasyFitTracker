@@ -1,7 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Screen, Button } from "@/app/_components/ui";
-import { updateWorkout } from "../actions";
+import { createClient } from "@/lib/supabase/server";
+import { Screen, Card, Button } from "@/app/_components/ui";
+import { updateWorkoutName } from "../actions";
 
 export default async function EditWorkoutPage({
   params,
@@ -9,44 +10,56 @@ export default async function EditWorkoutPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
   const supabase = await createClient();
 
-  const { data: workout } = await supabase
+  const { data: workout, error } = await supabase
     .from("workouts")
-    .select("id, name, performed_at")
+    .select("id, name")
     .eq("id", id)
     .single();
 
-  if (!workout) notFound();
+  if (error || !workout) notFound();
+
+  async function onSave(formData: FormData) {
+    "use server";
+    const name = String(formData.get("name") ?? "");
+    await updateWorkoutName(id, name);
+  }
 
   return (
-    <Screen>
-      <h1>Edit workout</h1>
+    <div style={{ minHeight: "100vh" }}>
+      <div style={{ padding: 16 }}>
+        <Link href={`/workouts/${id}`} style={{ textDecoration: "none" }}>
+          ← Back
+        </Link>
+      </div>
 
-      <p style={{ color: "var(--muted)", marginBottom: 16 }}>
-        {new Date(workout.performed_at).toLocaleString()}
-      </p>
+      <Screen>
+        <h1 style={{ marginTop: 8 }}>Edit workout name</h1>
 
-      <form action={updateWorkout}>
-        <input type="hidden" name="id" value={workout.id} />
+        <Card>
+          <form action={onSave} style={{ display: "grid", gap: 12 }}>
+            <div>
+              <label
+                style={{
+                  fontSize: 13,
+                  color: "var(--muted)",
+                  fontWeight: 800,
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              >
+                Name
+              </label>
+              <input name="name" defaultValue={workout.name || "Workout"} />
+            </div>
 
-        <label style={{ fontSize: 14, color: "var(--muted)" }}>
-          Workout name
-        </label>
-
-        <div style={{ margin: "8px 0 24px" }}>
-          <input
-            name="name"
-            defaultValue={workout.name ?? ""}
-            placeholder="Workout"
-          />
-        </div>
-
-        <Button full type="submit">
-          Save
-        </Button>
-      </form>
-    </Screen>
+            <Button full type="submit">
+              Save
+            </Button>
+          </form>
+        </Card>
+      </Screen>
+    </div>
   );
 }

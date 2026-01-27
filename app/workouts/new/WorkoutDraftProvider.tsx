@@ -7,16 +7,15 @@ type DraftExercise = { name: string; sets: DraftSet[]; completed?: boolean };
 
 export type WorkoutDraft = {
   workoutName?: string;
+  startedAt?: string; // ✅ new
   exercises: DraftExercise[];
 };
 
 type WorkoutDraftContextValue = {
   draft: WorkoutDraft;
 
-  // Keep this so existing code that does direct mutations still works
   setDraft: React.Dispatch<React.SetStateAction<WorkoutDraft>>;
 
-  // Helpers (so screens don’t need to hand-roll setDraft updates)
   setWorkoutName: (name: string) => void;
 
   addExercise: (name: string) => void;
@@ -34,30 +33,46 @@ type WorkoutDraftContextValue = {
 };
 
 const STORAGE_KEY = "workout_draft_v1";
+
 const WorkoutDraftContext = createContext<WorkoutDraftContextValue | null>(null);
 
+function newDraft(): WorkoutDraft {
+  return { workoutName: "", startedAt: new Date().toISOString(), exercises: [] };
+}
+
 function readInitialDraft(): WorkoutDraft {
-  if (typeof window === "undefined") return { workoutName: "", exercises: [] };
+  if (typeof window === "undefined") return newDraft();
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { workoutName: "", exercises: [] };
+    if (!raw) return newDraft();
 
     const parsed = JSON.parse(raw) as Partial<WorkoutDraft>;
+    const startedAt =
+      typeof parsed.startedAt === "string" && parsed.startedAt.length > 0
+        ? parsed.startedAt
+        : new Date().toISOString();
 
     return {
       workoutName: typeof parsed.workoutName === "string" ? parsed.workoutName : "",
-      exercises: Array.isArray(parsed.exercises)
-        ? (parsed.exercises as DraftExercise[])
-        : [],
+      startedAt,
+      exercises: Array.isArray(parsed.exercises) ? (parsed.exercises as DraftExercise[]) : [],
     };
   } catch {
-    return { workoutName: "", exercises: [] };
+    return newDraft();
   }
 }
 
 export function WorkoutDraftProvider({ children }: { children: React.ReactNode }) {
   const [draft, setDraft] = useState<WorkoutDraft>(() => readInitialDraft());
+
+  // ✅ Ensure startedAt always exists (for older localStorage drafts)
+  useEffect(() => {
+    if (!draft.startedAt) {
+      setDraft((d) => ({ ...d, startedAt: new Date().toISOString() }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     try {
@@ -73,6 +88,7 @@ export function WorkoutDraftProvider({ children }: { children: React.ReactNode }
     const addExercise = (name: string) => {
       setDraft((d) => ({
         ...d,
+        startedAt: d.startedAt ?? new Date().toISOString(),
         exercises: [...d.exercises, { name, sets: [], completed: false }],
       }));
     };
@@ -139,7 +155,7 @@ export function WorkoutDraftProvider({ children }: { children: React.ReactNode }
       }));
     };
 
-    const resetDraft = () => setDraft({ workoutName: "", exercises: [] });
+    const resetDraft = () => setDraft(newDraft());
 
     return {
       draft,
@@ -156,11 +172,7 @@ export function WorkoutDraftProvider({ children }: { children: React.ReactNode }
     };
   }, [draft]);
 
-  return (
-    <WorkoutDraftContext.Provider value={value}>
-      {children}
-    </WorkoutDraftContext.Provider>
-  );
+  return <WorkoutDraftContext.Provider value={value}>{children}</WorkoutDraftContext.Provider>;
 }
 
 export function useWorkoutDraft() {

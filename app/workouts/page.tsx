@@ -2,6 +2,18 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Screen, Card, Row, Pill, Button } from "@/app/_components/ui";
 
+function formatDuration(seconds: number | null | undefined) {
+  if (!seconds || seconds <= 0) return null;
+
+  const totalMinutes = Math.round(seconds / 60);
+  if (totalMinutes < 1) return "<1 min";
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+}
+
 function HeaderButton({
   href,
   children,
@@ -38,7 +50,7 @@ export default async function WorkoutsPage() {
 
   const { data: workouts } = await supabase
     .from("workouts")
-    .select("id, name, performed_at, workout_exercises(id, exercise_sets(id))")
+    .select("id, name, performed_at, duration_seconds, workout_exercises(id, exercise_sets(id))")
     .order("performed_at", { ascending: false });
 
   return (
@@ -67,9 +79,7 @@ export default async function WorkoutsPage() {
 
       <Screen>
         <h1 style={{ fontSize: 28, marginBottom: 4 }}>Workouts</h1>
-        <p style={{ color: "var(--muted)", marginBottom: 24 }}>
-          Your training history
-        </p>
+        <p style={{ color: "var(--muted)", marginBottom: 24 }}>Your training history</p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {workouts?.map((w) => {
@@ -78,6 +88,11 @@ export default async function WorkoutsPage() {
               (acc, e) => acc + e.exercise_sets.length,
               0
             );
+
+            const durationLabel = formatDuration(w.duration_seconds);
+            const performedLabel = w.performed_at
+              ? new Date(w.performed_at).toLocaleDateString()
+              : "—";
 
             return (
               <Link
@@ -93,7 +108,8 @@ export default async function WorkoutsPage() {
                   <Row gap={8} style={{ flexWrap: "wrap" as any }}>
                     <Pill>{exerciseCount} exercises</Pill>
                     <Pill>{setCount} sets</Pill>
-                    <Pill>{new Date(w.performed_at).toLocaleDateString()}</Pill>
+                    {durationLabel ? <Pill>{durationLabel}</Pill> : null}
+                    <Pill>{performedLabel}</Pill>
                   </Row>
                 </Card>
               </Link>
@@ -109,24 +125,6 @@ export default async function WorkoutsPage() {
           </Card>
         )}
       </Screen>
-
-      {/* Keep your bottom CTA if you still want it — but on mobile it’s redundant now.
-          If you prefer, delete this whole block. */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 16,
-          left: 16,
-          right: 16,
-          display: "none", // <- set to "block" if you want both top + bottom
-        }}
-      >
-        <Link href="/workouts/new">
-          <Button full type="button">
-            + New workout
-          </Button>
-        </Link>
-      </div>
     </div>
   );
 }
