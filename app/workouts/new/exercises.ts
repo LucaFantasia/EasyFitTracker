@@ -31,6 +31,7 @@ export const EXERCISES = [
     "Hamstring Curls",
     "Romanian Split Squats",
     "Leg Press",
+    "Leg Lunges",
     "Romanian Deadlifts",
     "Calf Raises",
 
